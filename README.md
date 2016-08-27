@@ -1,4 +1,4 @@
-This is my entry for the [Ludum Dare 36](http://ludumdare.com/compo/) Compo.
+This is my entry for the [Ludum Dare 36](http://ludumdare.com/compo/) Compo (2016).
 
 Right now this project is Windows only. 
 
