@@ -47,6 +47,7 @@ var (
 	previousPlacement C.WINDOWPLACEMENT
 	device            d3d9.Device
 	windowW, windowH  int
+	events            []game.InputEvent
 )
 
 func main() {
@@ -93,7 +94,7 @@ func main() {
 	cWindow := C.HWND(unsafe.Pointer(w32Window))
 	w32.SetWindowText(w32Window, "LD36 - v"+version)
 	fullscreen := true
-	fullscreen = false // NOTE toggle comment on this line for debugging
+	//fullscreen = false // NOTE toggle comment on this line for debugging
 	if fullscreen {
 		toggleFullscreen(cWindow)
 	}
@@ -207,7 +208,8 @@ func main() {
 			device.Clear(nil, d3d9.CLEAR_TARGET, d3d9.ColorRGB(0, 95, 83), 1, 0)
 			device.BeginScene()
 
-			g.Frame()
+			g.Frame(events)
+			events = events[0:0]
 
 			device.EndScene()
 			// TODO handle device lost error
@@ -221,10 +223,29 @@ func main() {
 	}
 }
 
+func addEvent(key game.Key, down bool) {
+	events = append(events, game.InputEvent{
+		Key:  key,
+		Down: down,
+	})
+}
+
 func handleMessage(window w32.HWND, message uint32, w, l uintptr) uintptr {
 	switch message {
+	case w32.WM_KEYUP:
+		switch w {
+		case w32.VK_LEFT:
+			addEvent(game.KeyLeft, false)
+		case w32.VK_RIGHT:
+			addEvent(game.KeyRight, false)
+		}
+		return 1
 	case w32.WM_KEYDOWN:
 		switch w {
+		case w32.VK_LEFT:
+			addEvent(game.KeyLeft, true)
+		case w32.VK_RIGHT:
+			addEvent(game.KeyRight, true)
 		case w32.VK_ESCAPE:
 			w32.SendMessage(window, w32.WM_CLOSE, 0, 0)
 		case w32.VK_F11:
@@ -435,7 +456,15 @@ func uint32ToFloat32(value uint32) float32 {
 	return *(*float32)(unsafe.Pointer(&value))
 }
 
+func (img textureImage) DrawAtFlipX(x, y int, flipX bool) {
+	img.draw(x, y, flipX)
+}
+
 func (img textureImage) DrawAt(x, y int) {
+	img.draw(x, y, false)
+}
+
+func (img textureImage) draw(x, y int, flipX bool) {
 	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
 		logln("DrawAt: device.SetTexture failed:", err)
 		return
@@ -451,6 +480,10 @@ func (img textureImage) DrawAt(x, y int) {
 	x2, y2 := fw/2, -fh/2
 	x3, y3 := -fw/2, fh/2
 	x4, y4 := fw/2, fh/2
+
+	if flipX {
+		x1, x2, x3, x4 = x2, x1, x4, x3
+	}
 
 	// TODO create a rotated variant
 	//s, c := math.Sincos(float64(degrees) / 180 * math.Pi)

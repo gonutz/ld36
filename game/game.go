@@ -1,7 +1,7 @@
 package game
 
 type Game interface {
-	Frame()
+	Frame([]InputEvent)
 }
 
 type Resources interface {
@@ -10,6 +10,7 @@ type Resources interface {
 
 type Image interface {
 	DrawAt(x, y int)
+	DrawAtFlipX(x, y int, flipX bool)
 	Size() (width, height int)
 }
 
@@ -26,6 +27,12 @@ type game struct {
 
 	caveman Image
 	rock    Image
+
+	cavemanX     int
+	cavemanFlipX bool
+
+	leftDown  bool
+	rightDown bool
 }
 
 func (g *game) init() {
@@ -33,7 +40,26 @@ func (g *game) init() {
 	g.rock = g.resources.LoadImage("rock")
 }
 
-func (g *game) Frame() {
-	g.caveman.DrawAt(500, 50)
+func (g *game) Frame(events []InputEvent) {
+	for _, e := range events {
+		switch e.Key {
+		case KeyLeft:
+			g.leftDown = e.Down
+		case KeyRight:
+			g.rightDown = e.Down
+		}
+	}
+
+	const speed = 8
+	if g.leftDown && !g.rightDown {
+		g.cavemanX -= speed
+		g.cavemanFlipX = false
+	}
+	if g.rightDown && !g.leftDown {
+		g.cavemanX += speed
+		g.cavemanFlipX = true
+	}
+
+	g.caveman.DrawAtFlipX(g.cavemanX, 50, g.cavemanFlipX)
 	g.rock.DrawAt(350, 50)
 }
