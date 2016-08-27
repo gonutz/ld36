@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -456,15 +457,19 @@ func uint32ToFloat32(value uint32) float32 {
 	return *(*float32)(unsafe.Pointer(&value))
 }
 
-func (img textureImage) DrawAtFlipX(x, y int, flipX bool) {
-	img.draw(x, y, flipX)
-}
-
 func (img textureImage) DrawAt(x, y int) {
-	img.draw(x, y, false)
+	img.draw(x, y, false, 0)
 }
 
-func (img textureImage) draw(x, y int, flipX bool) {
+func (img textureImage) DrawAtFlipX(x, y int, flipX bool) {
+	img.draw(x, y, flipX, 0)
+}
+
+func (img textureImage) DrawAtRotatedCW(x, y, degrees int) {
+	img.draw(x, y, false, degrees)
+}
+
+func (img textureImage) draw(x, y int, flipX bool, degrees int) {
 	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
 		logln("DrawAt: device.SetTexture failed:", err)
 		return
@@ -485,13 +490,14 @@ func (img textureImage) draw(x, y int, flipX bool) {
 		x1, x2, x3, x4 = x2, x1, x4, x3
 	}
 
-	// TODO create a rotated variant
-	//s, c := math.Sincos(float64(degrees) / 180 * math.Pi)
-	//sin, cos := float32(s), float32(c)
-	//x1, y1 = cos*x1-sin*y1, sin*x1+cos*y1
-	//x2, y2 = cos*x2-sin*y2, sin*x2+cos*y2
-	//x3, y3 = cos*x3-sin*y3, sin*x3+cos*y3
-	//x4, y4 = cos*x4-sin*y4, sin*x4+cos*y4
+	if degrees != 0 {
+		s, c := math.Sincos(float64(degrees) / 180 * math.Pi)
+		sin, cos := float32(s), float32(c)
+		x1, y1 = cos*x1-sin*y1, sin*x1+cos*y1
+		x2, y2 = cos*x2-sin*y2, sin*x2+cos*y2
+		x3, y3 = cos*x3-sin*y3, sin*x3+cos*y3
+		x4, y4 = cos*x4-sin*y4, sin*x4+cos*y4
+	}
 
 	dx := fx + fw/2 - 0.5
 	dy := fy + fh/2 - 0.5

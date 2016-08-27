@@ -10,6 +10,7 @@ type Resources interface {
 
 type Image interface {
 	DrawAt(x, y int)
+	DrawAtRotatedCW(x, y, degrees int)
 	DrawAtFlipX(x, y int, flipX bool)
 	Size() (width, height int)
 }
@@ -30,6 +31,9 @@ type game struct {
 
 	cavemanX     int
 	cavemanFlipX bool
+
+	rockX        int
+	rockRotation int
 
 	leftDown  bool
 	rightDown bool
@@ -61,5 +65,7 @@ func (g *game) Frame(events []InputEvent) {
 	}
 
 	g.caveman.DrawAtFlipX(g.cavemanX, 50, g.cavemanFlipX)
-	g.rock.DrawAt(350, 50)
+	g.rockRotation += 2
+	g.rockX += 3
+	g.rock.DrawAtRotatedCW(g.rockX, 50, g.rockRotation)
 }
