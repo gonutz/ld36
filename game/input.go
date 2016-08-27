@@ -5,6 +5,7 @@ type Key int
 const (
 	KeyLeft Key = 1 + iota
 	KeyRight
+	KeyUp
 )
 
 type InputEvent struct {

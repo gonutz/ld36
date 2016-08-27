@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"io/ioutil"
 	"os"
@@ -36,12 +37,15 @@ func main() {
 	}
 
 	caveman := loadXCF("caveman")
-	leftCaveman := caveman.GetLayerByName("stand left")
-	savePng(swapRedBlue(scaleImage(leftCaveman, 0.25)), "caveman_stand_left")
+	compile(caveman, "stand left", "caveman_stand_left")
+	compile(caveman, "push left", "caveman_push_left")
 
 	rocks := loadXCF("rock")
-	rock := rocks.GetLayerByName("rock")
-	savePng(swapRedBlue(scaleImage(rock, 0.25)), "rock")
+	compile(rocks, "rock", "rock")
+
+	gates := loadXCF("gate")
+	compile(gates, "a", "gate_a")
+	compile(gates, "b", "gate_b")
 
 	files, err := ioutil.ReadDir(".")
 	check(err)
@@ -61,6 +65,14 @@ func main() {
 	check(err)
 	defer file.Close()
 	check(output.Write(file))
+}
+
+func compile(canvas xcf.Canvas, layerName, outputName string) {
+	layer := canvas.GetLayerByName(layerName)
+	savePng(
+		swapRedBlue(scaleImage(makeTransparentAreasBlack(layer), 0.25)),
+		outputName,
+	)
 }
 
 func loadXCF(name string) xcf.Canvas {
@@ -111,4 +123,19 @@ func check(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func makeTransparentAreasBlack(original image.Image) image.Image {
+	b := original.Bounds()
+	img := image.NewRGBA(b)
+	draw.Draw(img, b, original, image.ZP, draw.Src)
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			_, _, _, a := img.At(x, y).RGBA()
+			if a == 0 {
+				img.Set(x, y, color.RGBA{})
+			}
+		}
+	}
+	return img
 }

@@ -239,6 +239,8 @@ func handleMessage(window w32.HWND, message uint32, w, l uintptr) uintptr {
 			addEvent(game.KeyLeft, false)
 		case w32.VK_RIGHT:
 			addEvent(game.KeyRight, false)
+		case w32.VK_UP:
+			addEvent(game.KeyUp, false)
 		}
 		return 1
 	case w32.WM_KEYDOWN:
@@ -247,6 +249,8 @@ func handleMessage(window w32.HWND, message uint32, w, l uintptr) uintptr {
 			addEvent(game.KeyLeft, true)
 		case w32.VK_RIGHT:
 			addEvent(game.KeyRight, true)
+		case w32.VK_UP:
+			addEvent(game.KeyUp, true)
 		case w32.VK_ESCAPE:
 			w32.SendMessage(window, w32.WM_CLOSE, 0, 0)
 		case w32.VK_F11:
@@ -458,18 +462,14 @@ func uint32ToFloat32(value uint32) float32 {
 }
 
 func (img textureImage) DrawAt(x, y int) {
-	img.draw(x, y, false, 0)
+	img.draw(x, y, false, 0, 1)
 }
 
-func (img textureImage) DrawAtFlipX(x, y int, flipX bool) {
-	img.draw(x, y, flipX, 0)
+func (img textureImage) DrawAtEx(x, y int, options game.DrawOptions) {
+	img.draw(x, y, options.FlipX, options.CenterRotationDeg, 1-options.Transparency)
 }
 
-func (img textureImage) DrawAtRotatedCW(x, y, degrees int) {
-	img.draw(x, y, false, degrees)
-}
-
-func (img textureImage) draw(x, y int, flipX bool, degrees int) {
+func (img textureImage) draw(x, y int, flipX bool, degrees int, alpha float32) {
 	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
 		logln("DrawAt: device.SetTexture failed:", err)
 		return
@@ -501,7 +501,8 @@ func (img textureImage) draw(x, y int, flipX bool, degrees int) {
 
 	dx := fx + fw/2 - 0.5
 	dy := fy + fh/2 - 0.5
-	white := uint32ToFloat32(0xFFFFFFFF)
+	a := uint32(alpha*255.0+0.5) << 24
+	white := uint32ToFloat32(0xFFFFFF | a)
 	data := [...]float32{
 		x1 + dx, y1 + dy, 0, 1, white, 0, 0,
 		x2 + dx, y2 + dy, 0, 1, white, 1, 0,
