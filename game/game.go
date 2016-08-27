@@ -166,7 +166,9 @@ func (g *game) Frame(events []InputEvent) {
 	cavemanW, cavemanH := g.caveman.Size()
 	cavemanRect := Rectangle{g.cavemanX, g.cavemanY, cavemanW, cavemanH}
 	newCavemanRect, _ := g.tileMap.moveInX(cavemanRect, cavemanDx)
+	newCavemanRect, _ = g.tileMap.moveInY(newCavemanRect, -5)
 	g.cavemanX = newCavemanRect.X
+	g.cavemanY = newCavemanRect.Y
 
 	g.gateGlowRatio += g.gateGlowDelta
 	if g.gateGlowRatio < 0 {
@@ -275,8 +277,6 @@ func (m *tileMap) tileAt(tileX, tileY int) *tile {
 
 func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool) {
 	if dx < 0 {
-		// going left, create a rect from current right to new left position and
-		// check that against object collisions
 		r := start
 		r.X += dx
 		r.W -= dx
@@ -285,8 +285,6 @@ func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool)
 			for tileX := m.toTileX(r.X); tileX <= m.toTileX(r.X+r.W-1); tileX++ {
 				if m.tileAt(tileX, tileY).isSolid {
 					right := m.toWorldX(tileX + 1)
-					// there could be multiple collisions, use the one which
-					// produces the lowest height (highest x value)
 					if right > newX {
 						newX = right
 					}
@@ -298,8 +296,6 @@ func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool)
 		}
 		start.X = newX
 	} else if dx > 0 {
-		// going right, create a rect from the current left to new right and
-		// check that against object collisions
 		r := start
 		r.W += dx
 		newRight := r.X + r.W - 1
@@ -307,8 +303,6 @@ func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool)
 			for tileX := m.toTileX(r.X); tileX <= m.toTileX(r.X+r.W-1); tileX++ {
 				if m.tileAt(tileX, tileY).isSolid {
 					left := m.toWorldX(tileX) - 1
-					// there could be multiple object collisions, use the one which
-					// produces the highest height (lowest x value)
 					if left < newRight {
 						newRight = left
 					}
@@ -319,6 +313,50 @@ func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool)
 			hitWall = true
 		}
 		start.X = newRight - start.W + 1
+	}
+
+	end = start
+	return
+}
+
+func (m *tileMap) moveInY(start Rectangle, dy int) (end Rectangle, hitWall bool) {
+	if dy < 0 {
+		r := start
+		r.Y += dy
+		r.H -= dy
+		newY := r.Y
+		for tileY := m.toTileY(r.Y); tileY <= m.toTileY(r.Y+r.H-1); tileY++ {
+			for tileX := m.toTileX(r.X); tileX <= m.toTileX(r.X+r.W-1); tileX++ {
+				if m.tileAt(tileX, tileY).isSolid {
+					bottom := m.toWorldY(tileY + 1)
+					if bottom > newY {
+						newY = bottom
+					}
+				}
+			}
+		}
+		if newY != r.Y {
+			hitWall = true
+		}
+		start.Y = newY
+	} else if dy > 0 {
+		r := start
+		r.H += dy
+		newBottom := r.Y + r.H - 1
+		for tileY := m.toTileY(r.Y); tileY <= m.toTileY(r.Y+r.H-1); tileY++ {
+			for tileX := m.toTileX(r.X); tileX <= m.toTileX(r.X+r.W-1); tileX++ {
+				if m.tileAt(tileX, tileY).isSolid {
+					top := m.toWorldY(tileY) - 1
+					if top < newBottom {
+						newBottom = top
+					}
+				}
+			}
+		}
+		if newBottom != r.Y+r.H-1 {
+			hitWall = true
+		}
+		start.Y = newBottom - start.H + 1
 	}
 
 	end = start
