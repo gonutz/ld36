@@ -1,6 +1,8 @@
 if not exist bin md bin
 
 cd rsc
+REM get the necessary dependencies that are only imported in the asset maker
+go get github.com/gonutz/ld36/rsc
 go run make_assets.go ..\bin\blob
 cd ..
 
