@@ -6,6 +6,7 @@ import (
 	"image/draw"
 	"image/png"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,31 @@ func main() {
 	compile(gates, "a", "gate_a")
 	compile(gates, "b", "gate_b")
 
+	// create tile sheet
+	tiles := loadXCF("tiles")
+	tileW, tileH := tiles.Layers[0].Bounds().Dx(), tiles.Layers[0].Bounds().Dy()
+	tileCount := len(tiles.Layers)
+	//var tileCount int
+	//for _, layer := range tiles.Layers {
+	//if layer.Visible {
+	//tileCount++
+	//}
+	//}
+	sheetSize := int(math.Ceil(math.Sqrt(float64(tileCount))) + 0.5)
+	sheet := image.NewRGBA(image.Rect(0, 0, sheetSize*tileW, sheetSize*tileH))
+	drawnTiles := 0
+	for _, layer := range tiles.Layers {
+		x := (drawnTiles % sheetSize) * tileW
+		y := (drawnTiles / sheetSize) * tileH
+		r := image.Rect(x, y, x+tileW, y+tileH)
+		draw.Draw(sheet, r, layer, layer.Bounds().Min, draw.Src)
+		drawnTiles++
+	}
+	// this is for editing the map in Tiled, it looks better with its original
+	// colors
+	//savePng(sheet, "tiles") // for editing in Tiled
+	savePng(swapRedBlue(sheet), "tiles") // for the final game
+
 	files, err := ioutil.ReadDir(".")
 	check(err)
 
@@ -54,7 +80,8 @@ func main() {
 
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), ".wav") ||
-			strings.HasSuffix(f.Name(), ".png") {
+			strings.HasSuffix(f.Name(), ".png") ||
+			strings.HasSuffix(f.Name(), ".tmx") {
 			data, err := ioutil.ReadFile(f.Name())
 			check(err)
 			output.Append(f.Name(), data)

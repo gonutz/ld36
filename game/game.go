@@ -1,11 +1,21 @@
 package game
 
+import (
+	"bytes"
+	"strconv"
+	"strings"
+
+	"github.com/gonutz/ld36/log"
+	"github.com/gonutz/tiled"
+)
+
 type Game interface {
 	Frame([]InputEvent)
 }
 
 type Resources interface {
 	LoadImage(id string) Image
+	LoadFile(id string) []byte
 }
 
 type DrawOptions struct {
@@ -17,7 +27,12 @@ type DrawOptions struct {
 type Image interface {
 	DrawAt(x, y int)
 	DrawAtEx(x, y int, options DrawOptions)
+	DrawRectAt(x, y int, source Rectangle)
 	Size() (width, height int)
+}
+
+type Rectangle struct {
+	X, Y, W, H int
 }
 
 func New(resources Resources) Game {
@@ -32,11 +47,13 @@ func New(resources Resources) Game {
 type game struct {
 	resources Resources
 
-	caveman       Image
-	cavemanPush   Image
-	rock          Image
-	gateGlowA     Image
-	gateGlowB     Image
+	caveman     Image
+	cavemanPush Image
+	rock        Image
+	gateGlowA   Image
+	gateGlowB   Image
+	tiles       Image
+
 	gateGlowRatio float32
 	gateGlowDelta float32
 
@@ -49,6 +66,10 @@ type game struct {
 	leftDown  bool
 	rightDown bool
 	upDown    bool
+
+	mapW, mapH   int
+	tileMap      []tile
+	tileW, tileH int
 }
 
 func (g *game) init() {
@@ -57,9 +78,51 @@ func (g *game) init() {
 	g.rock = g.resources.LoadImage("rock")
 	g.gateGlowA = g.resources.LoadImage("gate_a")
 	g.gateGlowB = g.resources.LoadImage("gate_b")
+	g.tiles = g.resources.LoadImage("tiles")
+
+	level, err := tiled.Read(bytes.NewReader(g.resources.LoadFile("level_0.tmx")))
+	if err != nil {
+		log.Fatal("unable to decode level_0.tmx: ", err)
+	}
+
+	log.Println(level)
+
+	g.mapW, g.mapH = level.Width, level.Height
+	g.tileW, g.tileH = level.TileWidth, level.TileHeight
+	tileSheetW, _ := g.tiles.Size()
+	tileCountX := tileSheetW / g.tileW
+	g.tileMap = make([]tile, g.mapW*g.mapH)
+	for i := range level.Layers {
+		if level.Layers[i].Name == "0" {
+			text := strings.Trim(level.Layers[i].Data.Text, "\n")
+			lines := strings.Split(text, "\n")
+			for i := range lines {
+				y := len(lines) - 1 - i
+				line := strings.TrimSuffix(lines[i], ",")
+				cols := strings.Split(line, ",")
+				for x := range cols {
+					id, err := strconv.Atoi(cols[x])
+					if err != nil {
+						log.Fatalf("tile ID is not an integer: '%v' at %v,%v", cols[x], x, y)
+					}
+					if id != 0 {
+						id--
+						tileX, tileY := id%tileCountX, id/tileCountX
+						g.tileMap[x+y*g.mapW].Rectangle = Rectangle{
+							tileX * g.tileW,
+							tileY * g.tileH,
+							g.tileW,
+							g.tileH,
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 func (g *game) Frame(events []InputEvent) {
+	// handle events
 	for _, e := range events {
 		switch e.Key {
 		case KeyLeft:
@@ -71,7 +134,7 @@ func (g *game) Frame(events []InputEvent) {
 		}
 	}
 
-	const speed = 3
+	const speed = 7
 	if g.leftDown && !g.rightDown {
 		g.cavemanX -= speed
 		g.cavemanFlipX = false
@@ -93,6 +156,17 @@ func (g *game) Frame(events []InputEvent) {
 
 	g.rockRotation += 2
 	g.rockX += 3
+
+	// render
+	var empty Rectangle
+	for y := 0; y < g.mapH; y++ {
+		for x := 0; x < g.mapW; x++ {
+			tile := g.tileMap[x+y*g.mapW].Rectangle
+			if tile != empty {
+				g.tiles.DrawRectAt(x*g.tileW, y*g.tileH, tile)
+			}
+		}
+	}
 
 	caveman := g.caveman
 	if g.upDown {
@@ -131,4 +205,8 @@ func centerRotation(value int) DrawOptions {
 func (o DrawOptions) centerRotation(value int) DrawOptions {
 	o.CenterRotationDeg = value
 	return o
+}
+
+type tile struct {
+	Rectangle
 }

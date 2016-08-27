@@ -10,7 +10,6 @@ import (
 	"image"
 	"image/draw"
 	"image/png"
-	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -27,6 +26,7 @@ import (
 	"github.com/gonutz/payload"
 
 	"github.com/gonutz/ld36/game"
+	"github.com/gonutz/ld36/log"
 )
 
 func init() {
@@ -43,7 +43,6 @@ const (
 var (
 	readFile          func(id string) ([]byte, error) = readFileFromDisk
 	rscBlob           *blob.Blob
-	logFile           io.WriteCloser
 	muted             bool
 	previousPlacement C.WINDOWPLACEMENT
 	device            d3d9.Device
@@ -52,6 +51,11 @@ var (
 )
 
 func main() {
+	logFile, err := os.Create(filepath.Join(os.Getenv("APPDATA"), "ld36_log.txt"))
+	if err == nil {
+		log.Init(logFile)
+	}
+
 	// close the log file at the end of the program
 	defer func() {
 		if logFile != nil {
@@ -61,7 +65,7 @@ func main() {
 
 	defer func() {
 		if err := recover(); err != nil {
-			logf("panic: %v\nstack\n---\n%s\n---\n", err, debug.Stack())
+			log.Printf("panic: %v\nstack\n---\n%s\n---\n", err, debug.Stack())
 			msg := fmt.Sprint("panic: ", err)
 			const MB_TOPMOST = 0x00040000
 			w32.MessageBox(0, msg, "Error", w32.MB_OK|w32.MB_ICONERROR|MB_TOPMOST)
@@ -75,12 +79,12 @@ func main() {
 		rscBlob, err = blob.Read(bytes.NewReader(rscBlobData))
 		if err == nil {
 			readFile = readFileFromBlob
-			logf("blob in exe contains %v item(s)\n", rscBlob.ItemCount())
+			log.Printf("blob in exe contains %v item(s)\n", rscBlob.ItemCount())
 		} else {
-			logln("unable to decode blob: ", err)
+			log.Println("unable to decode blob: ", err)
 		}
 	} else {
-		logln("unable to read payload:", err)
+		log.Println("unable to read payload:", err)
 	}
 
 	// create the window and initialize DirectX
@@ -90,7 +94,7 @@ func main() {
 		0, 0, 640, 480,
 	)
 	if err != nil {
-		fatal("unable to open window: ", err)
+		log.Fatal("unable to open window: ", err)
 	}
 	cWindow := C.HWND(unsafe.Pointer(w32Window))
 	w32.SetWindowText(w32Window, "LD36 - v"+version)
@@ -105,7 +109,7 @@ func main() {
 
 	err = mixer.Init()
 	if err != nil {
-		logln("unable to initialize the DirectSound8 mixer: ", err)
+		log.Println("unable to initialize the DirectSound8 mixer: ", err)
 		muted = true
 	} else {
 		defer mixer.Close()
@@ -113,13 +117,13 @@ func main() {
 
 	// initialize Direct3D9
 	if err := d3d9.Init(); err != nil {
-		fatal("unable to initialize Direct3D9: ", err)
+		log.Fatal("unable to initialize Direct3D9: ", err)
 	}
 	defer d3d9.Close()
 
 	d3d, err := d3d9.Create(d3d9.SDK_VERSION)
 	if err != nil {
-		fatal("unable to create Direct3D9 object: ", err)
+		log.Fatal("unable to create Direct3D9 object: ", err)
 	}
 	defer d3d.Release()
 
@@ -144,7 +148,7 @@ func main() {
 	if err == nil &&
 		caps.DevCaps&d3d9.DEVCAPS_HWTRANSFORMANDLIGHT != 0 {
 		createFlags = d3d9.CREATE_HARDWARE_VERTEXPROCESSING
-		logln("graphics card supports hardware vertex processing")
+		log.Println("graphics card supports hardware vertex processing")
 	}
 
 	device, _, err = d3d.CreateDevice(
@@ -164,7 +168,7 @@ func main() {
 		},
 	)
 	if err != nil {
-		fatal("unable to create Direct3D9 device: ", err)
+		log.Fatal("unable to create Direct3D9 device: ", err)
 	}
 	defer device.Release()
 
@@ -381,16 +385,16 @@ func mustLoadTexture(id string) (texture d3d9.Texture, width, height int) {
 		nil,
 	)
 	if err != nil {
-		fatalf("unable to create texture %v: %v", id, err)
+		log.Fatalf("unable to create texture %v: %v", id, err)
 	}
 	lockedRect, err := texture.LockRect(0, nil, d3d9.LOCK_DISCARD)
 	if err != nil {
-		fatalf("unable to lock texture %v: %v", id, err)
+		log.Fatalf("unable to lock texture %v: %v", id, err)
 	}
 	lockedRect.SetAllBytes(nrgba.Pix, nrgba.Stride)
 	err = texture.UnlockRect(0)
 	if err != nil {
-		fatalf("unable to unlock texture %v: %v", id, err)
+		log.Fatalf("unable to unlock texture %v: %v", id, err)
 	}
 	return
 }
@@ -398,11 +402,11 @@ func mustLoadTexture(id string) (texture d3d9.Texture, width, height int) {
 func mustLoadPng(id string) image.Image {
 	data, err := readFile(id + ".png")
 	if err != nil {
-		fatalf("unable to load image %v.png: %v", id, err)
+		log.Fatalf("unable to load image %v.png: %v", id, err)
 	}
 	image, err := png.Decode(bytes.NewReader(data))
 	if err != nil {
-		fatalf("image %v.png is not a valid png: %v", id, err)
+		log.Fatalf("image %v.png is not a valid png: %v", id, err)
 	}
 	return image
 }
@@ -434,6 +438,15 @@ func (r *resources) close() {
 	}
 }
 
+func (r *resources) LoadFile(id string) []byte {
+	data, err := readFile(id)
+	if err != nil {
+		log.Fatalf("unable to load file %v: %v", id, err)
+	}
+	log.Printf("loaded file %v (%v bytes)\n", id, len(data))
+	return data
+}
+
 func (r *resources) LoadImage(id string) game.Image {
 	if img, ok := r.images[id]; ok {
 		return img
@@ -447,7 +460,7 @@ func (r *resources) LoadImage(id string) game.Image {
 		height:  h,
 	}
 
-	logf("loaded texture %v (size %vx%v)\n", id, w, h)
+	log.Printf("loaded texture %v (size %vx%v)\n", id, w, h)
 
 	return r.images[id]
 }
@@ -471,7 +484,7 @@ func (img textureImage) DrawAtEx(x, y int, options game.DrawOptions) {
 
 func (img textureImage) draw(x, y int, flipX bool, degrees int, alpha float32) {
 	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
-		logln("DrawAt: device.SetTexture failed:", err)
+		log.Println("DrawAt: device.SetTexture failed:", err)
 		return
 	}
 
@@ -502,12 +515,12 @@ func (img textureImage) draw(x, y int, flipX bool, degrees int, alpha float32) {
 	dx := fx + fw/2 - 0.5
 	dy := fy + fh/2 - 0.5
 	a := uint32(alpha*255.0+0.5) << 24
-	white := uint32ToFloat32(0xFFFFFF | a)
+	color := uint32ToFloat32(0xFFFFFF | a)
 	data := [...]float32{
-		x1 + dx, y1 + dy, 0, 1, white, 0, 0,
-		x2 + dx, y2 + dy, 0, 1, white, 1, 0,
-		x3 + dx, y3 + dy, 0, 1, white, 0, 1,
-		x4 + dx, y4 + dy, 0, 1, white, 1, 1,
+		x1 + dx, y1 + dy, 0, 1, color, 0, 0,
+		x2 + dx, y2 + dy, 0, 1, color, 1, 0,
+		x3 + dx, y3 + dy, 0, 1, color, 0, 1,
+		x4 + dx, y4 + dy, 0, 1, color, 1, 1,
 	}
 	if err := device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
@@ -515,7 +528,7 @@ func (img textureImage) draw(x, y int, flipX bool, degrees int, alpha float32) {
 		unsafe.Pointer(&data[0]),
 		vertexStride,
 	); err != nil {
-		logln("DrawAt: device.DrawPrimitiveUP failed:", err)
+		log.Println("DrawAt: device.DrawPrimitiveUP failed:", err)
 	}
 
 	// TODO reset the texture if necessary (if later allowing operations that
@@ -526,38 +539,45 @@ func (img textureImage) draw(x, y int, flipX bool, degrees int, alpha float32) {
 	//}
 }
 
+func (img textureImage) DrawRectAt(x, y int, source game.Rectangle) {
+	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
+		log.Println("DrawAt: device.SetTexture failed:", err)
+		return
+	}
+
+	// the coordinate system for drawing goes from bottom to top
+	y = windowH - 1 - source.H - y
+
+	fx, fy := float32(x), float32(y)
+	fw, fh := float32(source.W), float32(source.H)
+
+	x1, y1 := -fw/2, -fh/2
+	x2, y2 := fw/2, -fh/2
+	x3, y3 := -fw/2, fh/2
+	x4, y4 := fw/2, fh/2
+
+	dx := fx + fw/2 - 0.5
+	dy := fy + fh/2 - 0.5
+	white := uint32ToFloat32(0xFFFFFFFF)
+	du, dv := 1/float32(img.width), 1/float32(img.height)
+	u0, u1 := float32(source.X)*du, float32(source.X+source.W)*du
+	v0, v1 := float32(source.Y)*dv, float32(source.Y+source.H)*dv
+	data := [...]float32{
+		x1 + dx, y1 + dy, 0, 1, white, u0, v0,
+		x2 + dx, y2 + dy, 0, 1, white, u1, v0,
+		x3 + dx, y3 + dy, 0, 1, white, u0, v1,
+		x4 + dx, y4 + dy, 0, 1, white, u1, v1,
+	}
+	if err := device.DrawPrimitiveUP(
+		d3d9.PT_TRIANGLESTRIP,
+		2,
+		unsafe.Pointer(&data[0]),
+		vertexStride,
+	); err != nil {
+		log.Println("DrawAt: device.DrawPrimitiveUP failed:", err)
+	}
+}
+
 func (img textureImage) Size() (int, int) {
 	return img.width, img.height
-}
-
-func log(a ...interface{})                 { logToFile(fmt.Sprint(a...)) }
-func logf(format string, a ...interface{}) { logToFile(fmt.Sprintf(format, a...)) }
-func logln(a ...interface{})               { logToFile(fmt.Sprintln(a...)) }
-
-func logToFile(msg string) {
-	if logFile == nil {
-		path := filepath.Join(os.Getenv("APPDATA"), "ld36_log.txt")
-		logFile, _ = os.Create(path)
-	}
-
-	fmt.Print(msg)
-
-	if logFile != nil {
-		logFile.Write([]byte(msg))
-	}
-}
-
-func fatal(a ...interface{}) {
-	msg := fmt.Sprint(a...)
-	fail(msg)
-}
-
-func fatalf(format string, a ...interface{}) {
-	msg := fmt.Sprintf(format, a...)
-	fail(msg)
-}
-
-func fail(msg string) {
-	logln("fatal error:", msg)
-	panic(msg)
 }
