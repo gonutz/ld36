@@ -40,6 +40,7 @@ func main() {
 	caveman := loadXCF("caveman")
 	compile(caveman, "stand left", "caveman_stand_left")
 	compile(caveman, "push left", "caveman_push_left")
+	compile(caveman, "fall left", "caveman_fall_left")
 
 	rocks := loadXCF("rock")
 	compile(rocks, "rock", "rock")

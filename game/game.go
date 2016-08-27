@@ -49,6 +49,7 @@ type game struct {
 
 	caveman     Image
 	cavemanPush Image
+	cavemanFall Image
 	rock        Image
 	gateGlowA   Image
 	gateGlowB   Image
@@ -57,8 +58,8 @@ type game struct {
 	gateGlowRatio float32
 	gateGlowDelta float32
 
-	cavemanX     int
-	cavemanFlipX bool
+	cavemanX, cavemanY int
+	cavemanFlipX       bool
 
 	rockX        int
 	rockRotation int
@@ -67,14 +68,13 @@ type game struct {
 	rightDown bool
 	upDown    bool
 
-	mapW, mapH   int
-	tileMap      []tile
-	tileW, tileH int
+	tileMap tileMap
 }
 
 func (g *game) init() {
 	g.caveman = g.resources.LoadImage("caveman_stand_left")
 	g.cavemanPush = g.resources.LoadImage("caveman_push_left")
+	g.cavemanFall = g.resources.LoadImage("caveman_fall_left")
 	g.rock = g.resources.LoadImage("rock")
 	g.gateGlowA = g.resources.LoadImage("gate_a")
 	g.gateGlowB = g.resources.LoadImage("gate_b")
@@ -85,14 +85,31 @@ func (g *game) init() {
 		log.Fatal("unable to decode level_0.tmx: ", err)
 	}
 
-	log.Println(level)
-
-	g.mapW, g.mapH = level.Width, level.Height
-	g.tileW, g.tileH = level.TileWidth, level.TileHeight
+	g.tileMap.setSize(level.Width, level.Height)
+	g.tileMap.tileW, g.tileMap.tileH = level.TileWidth, level.TileHeight
 	tileSheetW, _ := g.tiles.Size()
-	tileCountX := tileSheetW / g.tileW
-	g.tileMap = make([]tile, g.mapW*g.mapH)
+	tileCountX := tileSheetW / g.tileMap.tileW
 	for i := range level.Layers {
+		if level.Layers[i].Name == "objects" {
+			text := strings.Trim(level.Layers[i].Data.Text, "\n")
+			lines := strings.Split(text, "\n")
+			for i := range lines {
+				y := len(lines) - 1 - i
+				line := strings.TrimSuffix(lines[i], ",")
+				cols := strings.Split(line, ",")
+				for x := range cols {
+					id, err := strconv.Atoi(cols[x])
+					if err != nil {
+						log.Fatalf("tile ID is not an integer: '%v' at %v,%v", cols[x], x, y)
+					}
+					if id == 1 {
+						g.cavemanX = g.tileMap.toWorldX(x)
+						g.cavemanY = g.tileMap.toWorldX(y)
+					}
+				}
+			}
+		}
+
 		if level.Layers[i].Name == "0" {
 			text := strings.Trim(level.Layers[i].Data.Text, "\n")
 			lines := strings.Split(text, "\n")
@@ -108,12 +125,14 @@ func (g *game) init() {
 					if id != 0 {
 						id--
 						tileX, tileY := id%tileCountX, id/tileCountX
-						g.tileMap[x+y*g.mapW].Rectangle = Rectangle{
-							tileX * g.tileW,
-							tileY * g.tileH,
-							g.tileW,
-							g.tileH,
+						tile := g.tileMap.tileAt(x, y)
+						tile.imageSource = Rectangle{
+							tileX * g.tileMap.tileW,
+							tileY * g.tileMap.tileH,
+							g.tileMap.tileW,
+							g.tileMap.tileH,
 						}
+						tile.isSolid = id >= 1
 					}
 				}
 			}
@@ -135,14 +154,19 @@ func (g *game) Frame(events []InputEvent) {
 	}
 
 	const speed = 7
+	var cavemanDx int
 	if g.leftDown && !g.rightDown {
-		g.cavemanX -= speed
+		cavemanDx = -speed
 		g.cavemanFlipX = false
 	}
 	if g.rightDown && !g.leftDown {
-		g.cavemanX += speed
+		cavemanDx = speed
 		g.cavemanFlipX = true
 	}
+	cavemanW, cavemanH := g.caveman.Size()
+	cavemanRect := Rectangle{g.cavemanX, g.cavemanY, cavemanW, cavemanH}
+	newCavemanRect, _ := g.tileMap.moveInX(cavemanRect, cavemanDx)
+	g.cavemanX = newCavemanRect.X
 
 	g.gateGlowRatio += g.gateGlowDelta
 	if g.gateGlowRatio < 0 {
@@ -159,22 +183,24 @@ func (g *game) Frame(events []InputEvent) {
 
 	// render
 	var empty Rectangle
-	for y := 0; y < g.mapH; y++ {
-		for x := 0; x < g.mapW; x++ {
-			tile := g.tileMap[x+y*g.mapW].Rectangle
+	for y := 0; y < g.tileMap.height; y++ {
+		for x := 0; x < g.tileMap.width; x++ {
+			tile := g.tileMap.tileAt(x, y).imageSource
 			if tile != empty {
-				g.tiles.DrawRectAt(x*g.tileW, y*g.tileH, tile)
+				x, y := g.tileMap.toWorldXY(x, y)
+				g.tiles.DrawRectAt(x, y, tile)
 			}
 		}
 	}
 
 	caveman := g.caveman
 	if g.upDown {
-		caveman = g.cavemanPush
+		caveman = g.cavemanFall
 	}
-	caveman.DrawAtEx(g.cavemanX, 50, flipX(g.cavemanFlipX))
+	caveman.DrawAtEx(g.cavemanX, g.cavemanY, flipX(g.cavemanFlipX))
 
-	g.rock.DrawAtEx(g.rockX, 50, centerRotation(g.rockRotation))
+	g.rock.DrawAtEx(g.rockX, g.cavemanY, centerRotation(g.rockRotation))
+	g.rockX %= 2000
 
 	g.gateGlowA.DrawAtEx(0, 50, flipX(true))
 	g.gateGlowB.DrawAtEx(0, 50, flipX(true).opacity(g.gateGlowRatio))
@@ -208,5 +234,93 @@ func (o DrawOptions) centerRotation(value int) DrawOptions {
 }
 
 type tile struct {
-	Rectangle
+	imageSource Rectangle
+	isSolid     bool
+}
+
+type tileMap struct {
+	width, height int
+	tileW, tileH  int
+	tiles         []tile
+}
+
+func (m *tileMap) setSize(w, h int) {
+	m.width, m.height = w, h
+	m.tiles = make([]tile, w*h)
+}
+
+func (m *tileMap) toTileX(worldX int) int {
+	return worldX / m.tileW
+}
+
+func (m *tileMap) toTileY(worldY int) int {
+	return worldY / m.tileH
+}
+
+func (m *tileMap) toWorldX(tileX int) int {
+	return tileX * m.tileW
+}
+
+func (m *tileMap) toWorldY(tileY int) int {
+	return tileY * m.tileH
+}
+
+func (m *tileMap) toWorldXY(tileX, tileY int) (worldX, worldY int) {
+	return tileX * m.tileW, tileY * m.tileH
+}
+
+func (m *tileMap) tileAt(tileX, tileY int) *tile {
+	return &m.tiles[tileX+tileY*m.width]
+}
+
+func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool) {
+	if dx < 0 {
+		// going left, create a rect from current right to new left position and
+		// check that against object collisions
+		r := start
+		r.X += dx
+		r.W -= dx
+		newX := r.X
+		for tileY := m.toTileY(r.Y); tileY <= m.toTileY(r.Y+r.H-1); tileY++ {
+			for tileX := m.toTileX(r.X); tileX <= m.toTileX(r.X+r.W-1); tileX++ {
+				if m.tileAt(tileX, tileY).isSolid {
+					right := m.toWorldX(tileX + 1)
+					// there could be multiple collisions, use the one which
+					// produces the lowest height (highest x value)
+					if right > newX {
+						newX = right
+					}
+				}
+			}
+		}
+		if newX != r.X {
+			hitWall = true
+		}
+		start.X = newX
+	} else if dx > 0 {
+		// going right, create a rect from the current left to new right and
+		// check that against object collisions
+		r := start
+		r.W += dx
+		newRight := r.X + r.W - 1
+		for tileY := m.toTileY(r.Y); tileY <= m.toTileY(r.Y+r.H-1); tileY++ {
+			for tileX := m.toTileX(r.X); tileX <= m.toTileX(r.X+r.W-1); tileX++ {
+				if m.tileAt(tileX, tileY).isSolid {
+					left := m.toWorldX(tileX) - 1
+					// there could be multiple object collisions, use the one which
+					// produces the highest height (lowest x value)
+					if left < newRight {
+						newRight = left
+					}
+				}
+			}
+		}
+		if newRight != r.X+r.W-1 {
+			hitWall = true
+		}
+		start.X = newRight - start.W + 1
+	}
+
+	end = start
+	return
 }
