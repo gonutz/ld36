@@ -1,8 +1,8 @@
-This is my entry for the [Ludum Dare 36]() Compo.
+This is my entry for the [Ludum Dare 36](http://ludumdare.com/compo/) Compo.
 
 Right now this project is Windows only. 
 
-To build the project you need to have [Go]() and a [C-compiler]() installed. You can run
+To build the project you need to have [Go](https://golang.org/dl/) and a [C-compiler](https://sourceforge.net/projects/mingw/files/latest/download?source=files) installed. You can run
 
 `go get github.com/gonutz/ld36`
 
