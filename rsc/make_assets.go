@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"image/color"
 	"image/png"
 	"io/ioutil"
 	"os"
@@ -36,11 +37,11 @@ func main() {
 
 	caveman := loadXCF("caveman")
 	leftCaveman := caveman.GetLayerByName("stand left")
-	savePng(scaleImage(leftCaveman, 0.25), "caveman_stand_left")
+	savePng(swapRedBlue(scaleImage(leftCaveman, 0.25)), "caveman_stand_left")
 
 	rocks := loadXCF("rock")
 	rock := rocks.GetLayerByName("rock")
-	savePng(scaleImage(rock, 0.25), "rock")
+	savePng(swapRedBlue(scaleImage(rock, 0.25)), "rock")
 
 	files, err := ioutil.ReadDir(".")
 	check(err)
@@ -84,6 +85,26 @@ func scaleImage(img image.Image, f float64) image.Image {
 		img,
 		resize.Bicubic,
 	)
+}
+
+func swapRedBlue(img image.Image) image.Image {
+	b := img.Bounds()
+	swapped := image.NewRGBA(b)
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			swapped.Set(x, y, flipRB{img.At(x, y)})
+		}
+	}
+	return swapped
+}
+
+type flipRB struct {
+	color.Color
+}
+
+func (c flipRB) RGBA() (r, g, b, a uint32) {
+	b, g, r, a = c.Color.RGBA()
+	return
 }
 
 func check(err error) {
