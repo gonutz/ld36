@@ -38,6 +38,10 @@ func main() {
 	leftCaveman := caveman.GetLayerByName("stand left")
 	savePng(scaleImage(leftCaveman, 0.25), "caveman_stand_left")
 
+	rocks := loadXCF("rock")
+	rock := rocks.GetLayerByName("rock")
+	savePng(scaleImage(rock, 0.25), "rock")
+
 	files, err := ioutil.ReadDir(".")
 	check(err)
 
