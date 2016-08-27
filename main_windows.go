@@ -72,7 +72,7 @@ func main() {
 	cWindow := C.HWND(unsafe.Pointer(w32Window))
 	w32.SetWindowText(w32Window, "LD36 - v"+version)
 	fullscreen := true
-	//fullscreen = false // NOTE toggle comment on this line for debugging
+	fullscreen = false // NOTE toggle comment on this line for debugging
 	if fullscreen {
 		toggleFullscreen(cWindow)
 	}
@@ -116,11 +116,19 @@ func main() {
 		maxScreenW, maxScreenH = windowW, windowH
 	}
 
+	var createFlags uint32 = d3d9.CREATE_SOFTWARE_VERTEXPROCESSING
+	caps, err := d3d.GetDeviceCaps(d3d9.ADAPTER_DEFAULT, d3d9.DEVTYPE_HAL)
+	if err == nil &&
+		caps.DevCaps&d3d9.DEVCAPS_HWTRANSFORMANDLIGHT != 0 {
+		createFlags = d3d9.CREATE_HARDWARE_VERTEXPROCESSING
+		logln("graphics card supports hardware vertex processing")
+	}
+
 	device, _, err := d3d.CreateDevice(
 		d3d9.ADAPTER_DEFAULT,
 		d3d9.DEVTYPE_HAL,
 		unsafe.Pointer(cWindow),
-		d3d9.CREATE_HARDWARE_VERTEXPROCESSING,
+		createFlags,
 		d3d9.PRESENT_PARAMETERS{
 			BackBufferWidth:  maxScreenW,
 			BackBufferHeight: maxScreenH,
