@@ -2,6 +2,7 @@ package game
 
 import (
 	"bytes"
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -72,19 +73,20 @@ type game struct {
 	screenW, screenH int
 	camera           camera
 
-	caveman     Image
-	cavemanPush Image
-	cavemanFall Image
-	rock        Image
-	gateGlowA   Image
-	gateGlowB   Image
-	tiles       Image
+	cavemanStand Image
+	cavemanPush  Image
+	cavemanFall  Image
+	rock         Image
+	gateGlowA    Image
+	gateGlowB    Image
+	tiles        Image
 
 	gateGlowRatio float32
 	gateGlowDelta float32
 
 	cavemanX, cavemanY int
 	cavemanFlipX       bool
+	cavemanHitBox      Rectangle
 
 	rockX        int
 	rockRotation int
@@ -104,7 +106,15 @@ func (g *game) loadImage(id string) Image {
 }
 
 func (g *game) init() {
-	g.caveman = g.loadImage("caveman_stand_left")
+	var info Info
+	data := g.resources.LoadFile("info.json")
+	err := json.NewDecoder(bytes.NewReader(data)).Decode(&info)
+	if err != nil {
+		log.Fatal("unable to decode game info json file: ", err)
+	}
+	g.cavemanHitBox = info.CavemanHitBox
+
+	g.cavemanStand = g.loadImage("caveman_stand_left")
 	g.cavemanPush = g.loadImage("caveman_push_left")
 	g.cavemanFall = g.loadImage("caveman_fall_left")
 	g.rock = g.loadImage("rock")
@@ -199,12 +209,17 @@ func (g *game) Frame(events []InputEvent) {
 		cavemanDx = speed
 		g.cavemanFlipX = true
 	}
-	cavemanW, cavemanH := g.caveman.Size()
-	cavemanRect := Rectangle{g.cavemanX, g.cavemanY, cavemanW, cavemanH}
-	newCavemanRect, _ := g.tileMap.moveInX(cavemanRect, cavemanDx)
-	newCavemanRect, _ = g.tileMap.moveInY(newCavemanRect, -5)
-	g.cavemanX = newCavemanRect.X
-	g.cavemanY = newCavemanRect.Y
+	cavemanW, cavemanH := g.cavemanStand.Size()
+	cavemanRect := Rectangle{
+		g.cavemanX + g.cavemanHitBox.X,
+		g.cavemanY + g.cavemanHitBox.Y,
+		g.cavemanHitBox.W,
+		g.cavemanHitBox.H,
+	}
+	cavemanRect, _ = g.tileMap.moveInX(cavemanRect, cavemanDx)
+	cavemanRect, _ = g.tileMap.moveInY(cavemanRect, -5)
+	g.cavemanX = cavemanRect.X - g.cavemanHitBox.X
+	g.cavemanY = cavemanRect.Y - g.cavemanHitBox.Y
 	g.camera.offsetX = -g.cavemanX + (g.screenW-cavemanW)/2
 	g.camera.offsetY = -g.cavemanY + (g.screenH-cavemanH)/2
 
@@ -233,7 +248,7 @@ func (g *game) Frame(events []InputEvent) {
 		}
 	}
 
-	caveman := g.caveman
+	caveman := g.cavemanStand
 	if g.upDown {
 		caveman = g.cavemanFall
 	}
