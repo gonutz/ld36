@@ -302,7 +302,7 @@ func openWindow(
 		0,
 		syscall.StringToUTF16Ptr(className),
 		nil,
-		w32.WS_OVERLAPPED|w32.WS_CAPTION|w32.WS_SYSMENU|w32.WS_VISIBLE,
+		w32.WS_OVERLAPPEDWINDOW|w32.WS_VISIBLE,
 		x, y, width, height,
 		0, 0, 0, nil,
 	)
@@ -322,11 +322,7 @@ func toggleFullscreen(window C.HWND) {
 		monitor := C.MonitorFromWindow(window, C.MONITOR_DEFAULTTOPRIMARY)
 		if C.GetWindowPlacement(window, &previousPlacement) != 0 &&
 			C.GetMonitorInfo(monitor, &monitorInfo) != 0 {
-			C.SetWindowLong(
-				window,
-				C.GWL_STYLE,
-				style & ^C.WS_OVERLAPPED & ^w32.WS_CAPTION & ^w32.WS_SYSMENU,
-			)
+			C.SetWindowLong(window, C.GWL_STYLE, style & ^C.WS_OVERLAPPEDWINDOW)
 			C.SetWindowPos(window, C.HWND(unsafe.Pointer(uintptr(0))),
 				C.int(monitorInfo.rcMonitor.left),
 				C.int(monitorInfo.rcMonitor.top),
@@ -341,7 +337,7 @@ func toggleFullscreen(window C.HWND) {
 		C.SetWindowLong(
 			window,
 			C.GWL_STYLE,
-			style|w32.WS_OVERLAPPED|w32.WS_CAPTION|w32.WS_SYSMENU,
+			style|w32.WS_OVERLAPPEDWINDOW,
 		)
 		C.SetWindowPlacement(window, &previousPlacement)
 		C.SetWindowPos(window, nil, 0, 0, 0, 0,
