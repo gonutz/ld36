@@ -17,12 +17,14 @@ import (
 	"runtime"
 	"runtime/debug"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/AllenDang/w32"
 	"github.com/gonutz/blob"
 	"github.com/gonutz/d3d9"
 	"github.com/gonutz/mixer"
+	"github.com/gonutz/mixer/wav"
 	"github.com/gonutz/payload"
 
 	"github.com/gonutz/ld36/game"
@@ -425,12 +427,14 @@ func toNRGBA(img image.Image) (nrgba *image.NRGBA) {
 func newGameResources() *resources {
 	return &resources{
 		images: make(map[string]game.Image),
+		sounds: make(map[string]game.Sound),
 	}
 }
 
 type resources struct {
 	textures []d3d9.Texture
 	images   map[string]game.Image
+	sounds   map[string]game.Sound
 }
 
 func (r *resources) close() {
@@ -446,6 +450,59 @@ func (r *resources) LoadFile(id string) []byte {
 	}
 	log.Printf("loaded file %v (%v bytes)\n", id, len(data))
 	return data
+}
+
+type dummySound struct{}
+
+func (dummySound) PlayLooping() {}
+
+func (r *resources) LoadSound(id string) game.Sound {
+	if muted {
+		return dummySound{}
+	}
+
+	if s, ok := r.sounds[id]; ok {
+		return s
+	}
+
+	soundSource := mustLoadWav(id)
+	r.sounds[id] = sound{source: soundSource}
+
+	return r.sounds[id]
+}
+
+type sound struct {
+	source mixer.SoundSource
+}
+
+func (s sound) PlayLooping() {
+	s.source.PlayOnce()
+	next := time.Tick(s.source.Length())
+	go func() {
+		for {
+			<-next
+			s.source.PlayOnce()
+		}
+	}()
+}
+
+func mustLoadWav(id string) mixer.SoundSource {
+	data, err := readFile(id + ".wav")
+	if err != nil {
+		log.Fatalf("unable to load sound %v.wav: %v", id, err)
+	}
+
+	wave, err := wav.Read(bytes.NewReader(data))
+	if err != nil {
+		log.Fatalf("unable to read wave %v: %v", id, err)
+	}
+
+	source, err := mixer.NewSoundSource(wave)
+	if err != nil {
+		log.Fatalf("unable to create sound source from wave %v: %v", id, err)
+	}
+
+	return source
 }
 
 func (r *resources) LoadImage(id string) game.Image {

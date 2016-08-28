@@ -25,6 +25,7 @@ type Game interface {
 
 type Resources interface {
 	LoadImage(id string) Image
+	LoadSound(id string) Sound
 	LoadFile(id string) []byte
 }
 
@@ -39,6 +40,10 @@ type Image interface {
 	DrawAtEx(x, y int, options DrawOptions)
 	DrawRectAt(x, y int, source Rectangle)
 	Size() (width, height int)
+}
+
+type Sound interface {
+	PlayLooping()
 }
 
 type Rectangle struct {
@@ -125,6 +130,8 @@ type game struct {
 	resources Resources
 
 	camera camera
+
+	music Sound
 
 	cavemanStand Image
 	cavemanPush  Image
@@ -272,6 +279,9 @@ func (g *game) init() {
 		}
 	}
 	g.camera.setWorldSize(g.tileMap.worldSize())
+
+	g.music = g.resources.LoadSound("back_music")
+	g.music.PlayLooping()
 }
 
 func (g *game) SetScreenSize(width, height int) {
