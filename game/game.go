@@ -323,6 +323,11 @@ func (g *game) Frame(events []InputEvent) {
 	dx, _ = g.moveCavemanInX(cavemanRect, dx)
 	cavemanRect.X += dx
 	dy, g.cavemanIsOnGround = g.tileMap.moveInY(cavemanRect, g.cavemanSpeedY)
+	var standsOnObject bool
+	dy, standsOnObject = g.moveCavemanInY(cavemanRect, dy)
+	if standsOnObject {
+		g.cavemanIsOnGround = true
+	}
 	cavemanRect.Y += dy
 
 	g.cavemanX = cavemanRect.X - g.cavemanHitBox.X
@@ -502,6 +507,49 @@ func (g *game) moveCavemanInX(start Rectangle, dx int) (realDx int, hitObject bo
 	}
 
 	realDx = start.X - startX
+	return
+}
+
+func (g *game) moveCavemanInY(start Rectangle, dy int) (realDy int, hitObject bool) {
+	startY := start.Y
+	if dy < 0 {
+		r := start
+		r.Y += dy
+		r.H -= dy
+		newY := r.Y
+		for i := range g.rocks {
+			bounds := g.rockBounds(i)
+			if r.overlaps(bounds) {
+				bottom := bounds.Y + bounds.H
+				if bottom > newY {
+					newY = bottom
+				}
+			}
+		}
+		if newY != r.Y {
+			hitObject = true
+		}
+		start.Y = newY
+	} else if dy > 0 {
+		r := start
+		r.H += dy
+		newBottom := r.Y + r.H - 1
+		for i := range g.rocks {
+			bounds := g.rockBounds(i)
+			if r.overlaps(bounds) {
+				top := bounds.Y - 1
+				if top < newBottom {
+					newBottom = top
+				}
+			}
+		}
+		if newBottom != r.Y+r.H-1 {
+			hitObject = true
+		}
+		start.Y = newBottom - start.H + 1
+	}
+
+	realDy = start.Y - startY
 	return
 }
 
