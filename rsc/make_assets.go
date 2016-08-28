@@ -11,7 +11,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gonutz/blob"
 	"github.com/gonutz/ld36/game"
@@ -84,20 +83,24 @@ func main() {
 	//savePng(sheet, "tiles") // for editing in Tiled
 	savePng(swapRedBlue(sheet), "tiles") // for the final game
 
-	files, err := ioutil.ReadDir(".")
-	check(err)
-
 	output := blob.New()
 
-	for _, f := range files {
-		if strings.HasSuffix(f.Name(), ".wav") ||
-			strings.HasSuffix(f.Name(), ".png") ||
-			strings.HasSuffix(f.Name(), ".tmx") ||
-			strings.HasSuffix(f.Name(), ".json") {
-			data, err := ioutil.ReadFile(f.Name())
-			check(err)
-			output.Append(f.Name(), data)
-		}
+	for _, name := range []string{
+		"back_music.wav",
+		"caveman_fall_left.png",
+		"caveman_push_left.png",
+		"caveman_stand_left.png",
+		"controls.png",
+		"gate_a.png",
+		"gate_b.png",
+		"info.json",
+		"level_0.tmx",
+		"rock.png",
+		"tiles.png",
+	} {
+		data, err := ioutil.ReadFile(name)
+		check(err)
+		output.Append(name, data)
 	}
 
 	file, err := os.Create(outputPath)
