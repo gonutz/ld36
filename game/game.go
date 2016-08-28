@@ -45,6 +45,10 @@ type Rectangle struct {
 	X, Y, W, H int
 }
 
+func (r Rectangle) overlaps(s Rectangle) bool {
+	return r.X+r.W > s.X && r.Y+r.H > s.Y && s.X+s.W > r.X && s.Y+s.H > r.Y
+}
+
 func New(resources Resources) Game {
 	g := &game{
 		resources:     resources,
@@ -134,6 +138,8 @@ type game struct {
 	gateGlowDelta float32
 
 	cavemanX, cavemanY int
+	cavemanSpeedY      int
+	cavemanIsOnGround  bool
 	cavemanFacesRight  bool
 	cavemanHitBox      Rectangle
 
@@ -295,6 +301,16 @@ func (g *game) Frame(events []InputEvent) {
 		cavemanDx = speed
 		g.cavemanFacesRight = true
 	}
+
+	if g.cavemanIsOnGround && g.upDown {
+		g.cavemanSpeedY = 20
+	}
+
+	g.cavemanSpeedY -= 1
+	if g.cavemanSpeedY < -14 {
+		g.cavemanSpeedY = -14
+	}
+
 	cavemanW, cavemanH := g.cavemanStand.Size()
 	cavemanRect := Rectangle{
 		g.cavemanX + g.cavemanHitBox.X,
@@ -302,14 +318,22 @@ func (g *game) Frame(events []InputEvent) {
 		g.cavemanHitBox.W,
 		g.cavemanHitBox.H,
 	}
-	cavemanRect, _ = g.tileMap.moveInX(cavemanRect, cavemanDx)
-	cavemanRect, _ = g.tileMap.moveInY(cavemanRect, -5)
+	var dx, dy int
+	dx, _ = g.tileMap.moveInX(cavemanRect, cavemanDx)
+	dx, _ = g.moveCavemanInX(cavemanRect, dx)
+	cavemanRect.X += dx
+	dy, g.cavemanIsOnGround = g.tileMap.moveInY(cavemanRect, g.cavemanSpeedY)
+	cavemanRect.Y += dy
+
 	g.cavemanX = cavemanRect.X - g.cavemanHitBox.X
 	g.cavemanY = cavemanRect.Y - g.cavemanHitBox.Y
 	g.camera.centerAround(
 		g.cavemanX+cavemanW/2,
 		g.cavemanY+cavemanH/2,
 	)
+	if g.cavemanIsOnGround {
+		g.cavemanSpeedY = 0
+	}
 
 	g.gateGlowRatio += g.gateGlowDelta
 	if g.gateGlowRatio < 0 {
@@ -334,8 +358,12 @@ func (g *game) Frame(events []InputEvent) {
 	}
 
 	caveman := g.cavemanStand
-	if g.upDown {
-		caveman = g.cavemanFall
+	if !g.cavemanIsOnGround {
+		if g.cavemanSpeedY > 0 {
+			caveman = g.cavemanStand
+		} else {
+			caveman = g.cavemanFall
+		}
 	}
 	caveman.DrawAtEx(g.cavemanX, g.cavemanY, flipX(g.cavemanFacesRight))
 
@@ -424,7 +452,61 @@ func (m *tileMap) worldSize() (int, int) {
 	return m.width * m.tileW, m.height * m.tileH
 }
 
-func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool) {
+func (g *game) rockBounds(rockIndex int) Rectangle {
+	w, h := g.rock.Size()
+	return Rectangle{
+		g.rocks[rockIndex].x,
+		g.rocks[rockIndex].y,
+		w,
+		h,
+	}
+}
+
+func (g *game) moveCavemanInX(start Rectangle, dx int) (realDx int, hitObject bool) {
+	startX := start.X
+	if dx < 0 {
+		r := start
+		r.X += dx
+		r.W -= dx
+		newX := r.X
+		for i := range g.rocks {
+			bounds := g.rockBounds(i)
+			if r.overlaps(bounds) {
+				right := bounds.X + bounds.W
+				if right > newX {
+					newX = right
+				}
+			}
+		}
+		if newX != r.X {
+			hitObject = true
+		}
+		start.X = newX
+	} else if dx > 0 {
+		r := start
+		r.W += dx
+		newRight := r.X + r.W - 1
+		for i := range g.rocks {
+			bounds := g.rockBounds(i)
+			if r.overlaps(bounds) {
+				left := bounds.X - 1
+				if left < newRight {
+					newRight = left
+				}
+			}
+		}
+		if newRight != r.X+r.W-1 {
+			hitObject = true
+		}
+		start.X = newRight - start.W + 1
+	}
+
+	realDx = start.X - startX
+	return
+}
+
+func (m *tileMap) moveInX(start Rectangle, dx int) (realDx int, hitWall bool) {
+	startX := start.X
 	if dx < 0 {
 		r := start
 		r.X += dx
@@ -464,11 +546,12 @@ func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool)
 		start.X = newRight - start.W + 1
 	}
 
-	end = start
+	realDx = start.X - startX
 	return
 }
 
-func (m *tileMap) moveInY(start Rectangle, dy int) (end Rectangle, hitWall bool) {
+func (m *tileMap) moveInY(start Rectangle, dy int) (realDy int, hitWall bool) {
+	startY := start.Y
 	if dy < 0 {
 		r := start
 		r.Y += dy
@@ -508,6 +591,6 @@ func (m *tileMap) moveInY(start Rectangle, dy int) (end Rectangle, hitWall bool)
 		start.Y = newBottom - start.H + 1
 	}
 
-	end = start
+	realDy = start.Y - startY
 	return
 }
