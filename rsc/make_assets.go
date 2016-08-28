@@ -80,6 +80,14 @@ func main() {
 	//savePng(sheet, "tiles") // for editing in Tiled
 	savePng(swapRedBlue(sheet), "tiles") // for the final game
 
+	infoBuffer := bytes.NewBuffer(nil)
+	check(json.NewEncoder(infoBuffer).Encode(info))
+	check(ioutil.WriteFile(
+		filepath.Join(sourcePath, "rsc", "info.json"),
+		infoBuffer.Bytes(),
+		0666,
+	))
+
 	output := blob.New()
 
 	assetFiles := []string{
@@ -113,14 +121,6 @@ func main() {
 		check(err)
 		output.Append(name, data)
 	}
-
-	infoBuffer := bytes.NewBuffer(nil)
-	check(json.NewEncoder(infoBuffer).Encode(info))
-	check(ioutil.WriteFile(
-		filepath.Join(sourcePath, "rsc", "info.json"),
-		infoBuffer.Bytes(),
-		0666,
-	))
 
 	file, err := os.Create(outputPath)
 	check(err)
