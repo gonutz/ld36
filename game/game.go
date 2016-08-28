@@ -10,6 +10,14 @@ import (
 	"github.com/gonutz/tiled"
 )
 
+const (
+	objPlayerLeft = iota
+	objPlayerRight
+	objGateLeft
+	objGateRight
+	objRock
+)
+
 type Game interface {
 	Frame([]InputEvent)
 	SetScreenSize(width, height int)
@@ -85,17 +93,24 @@ type game struct {
 	gateGlowDelta float32
 
 	cavemanX, cavemanY int
-	cavemanFlipX       bool
+	cavemanFacesRight  bool
 	cavemanHitBox      Rectangle
 
-	rockX        int
-	rockRotation int
+	exitX, exitY   int
+	exitFacesRight bool
+
+	rocks []rock
 
 	leftDown  bool
 	rightDown bool
 	upDown    bool
 
 	tileMap tileMap
+}
+
+type rock struct {
+	x, y     int
+	rotation int
 }
 
 func (g *game) loadImage(id string) Image {
@@ -129,10 +144,13 @@ func (g *game) init() {
 
 	g.tileMap.setSize(level.Width, level.Height)
 	g.tileMap.tileW, g.tileMap.tileH = level.TileWidth, level.TileHeight
-	tileSheetW, _ := g.tiles.Size()
+	tileSheetW, tileSheetH := g.tiles.Size()
 	tileCountX := tileSheetW / g.tileMap.tileW
+	tileCountY := tileSheetH / g.tileMap.tileH
 	for i := range level.Layers {
 		if level.Layers[i].Name == "objects" {
+			objIndexOffset := 1 + tileCountX*tileCountY
+
 			text := strings.Trim(level.Layers[i].Data.Text, "\n")
 			lines := strings.Split(text, "\n")
 			for i := range lines {
@@ -144,9 +162,35 @@ func (g *game) init() {
 					if err != nil {
 						log.Fatalf("tile ID is not an integer: '%v' at %v,%v", cols[x], x, y)
 					}
-					if id == 1 {
-						g.cavemanX = g.tileMap.toWorldX(x)
-						g.cavemanY = g.tileMap.toWorldX(y)
+					if id == 0 {
+						continue
+					}
+
+					id -= objIndexOffset
+					worldX, worldY := g.tileMap.toWorldXY(x, y)
+
+					if id == objPlayerLeft {
+						g.cavemanFacesRight = false
+						g.cavemanX, g.cavemanY = worldX, worldY
+					}
+					if id == objPlayerRight {
+						g.cavemanFacesRight = true
+						g.cavemanX, g.cavemanY = worldX, worldY
+					}
+					if id == objGateLeft {
+						g.exitFacesRight = false
+						g.exitX, g.exitY = worldX, worldY
+					}
+					if id == objGateRight {
+						g.exitFacesRight = true
+						g.exitX, g.exitY = worldX, worldY
+					}
+					if id == objRock {
+						r := rock{
+							x: worldX,
+							y: worldY,
+						}
+						g.rocks = append(g.rocks, r)
 					}
 				}
 			}
@@ -203,11 +247,11 @@ func (g *game) Frame(events []InputEvent) {
 	var cavemanDx int
 	if g.leftDown && !g.rightDown {
 		cavemanDx = -speed
-		g.cavemanFlipX = false
+		g.cavemanFacesRight = false
 	}
 	if g.rightDown && !g.leftDown {
 		cavemanDx = speed
-		g.cavemanFlipX = true
+		g.cavemanFacesRight = true
 	}
 	cavemanW, cavemanH := g.cavemanStand.Size()
 	cavemanRect := Rectangle{
@@ -233,9 +277,6 @@ func (g *game) Frame(events []InputEvent) {
 		g.gateGlowDelta = -g.gateGlowDelta
 	}
 
-	g.rockRotation += 2
-	g.rockX += 3
-
 	// render
 	var empty Rectangle
 	for y := 0; y < g.tileMap.height; y++ {
@@ -252,13 +293,18 @@ func (g *game) Frame(events []InputEvent) {
 	if g.upDown {
 		caveman = g.cavemanFall
 	}
-	caveman.DrawAtEx(g.cavemanX, g.cavemanY, flipX(g.cavemanFlipX))
+	caveman.DrawAtEx(g.cavemanX, g.cavemanY, flipX(g.cavemanFacesRight))
 
-	g.rock.DrawAtEx(g.rockX, g.cavemanY, centerRotation(g.rockRotation))
-	g.rockX %= 2000
+	for i := range g.rocks {
+		g.rock.DrawAtEx(
+			g.rocks[i].x,
+			g.rocks[i].y,
+			centerRotation(g.rocks[i].rotation),
+		)
+	}
 
-	g.gateGlowA.DrawAtEx(0, 50, flipX(true))
-	g.gateGlowB.DrawAtEx(0, 50, flipX(true).opacity(g.gateGlowRatio))
+	g.gateGlowA.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight))
+	g.gateGlowB.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight).opacity(g.gateGlowRatio))
 }
 
 func flipX(value bool) DrawOptions {
@@ -325,6 +371,9 @@ func (m *tileMap) toWorldXY(tileX, tileY int) (worldX, worldY int) {
 }
 
 func (m *tileMap) tileAt(tileX, tileY int) *tile {
+	if tileX < 0 || tileY < 0 || tileX >= m.width || tileY >= m.height {
+		return &tile{}
+	}
 	return &m.tiles[tileX+tileY*m.width]
 }
 
