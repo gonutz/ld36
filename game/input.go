@@ -6,6 +6,7 @@ const (
 	KeyLeft Key = 1 + iota
 	KeyRight
 	KeyUp
+	KeyRestart
 )
 
 type InputEvent struct {

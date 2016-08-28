@@ -55,12 +55,45 @@ func (r Rectangle) overlaps(s Rectangle) bool {
 }
 
 func New(resources Resources) Game {
-	g := &game{
-		resources:     resources,
+	f := &gameFrame{
+		resources: resources,
+	}
+	f.init()
+	return f
+}
+
+type gameFrame struct {
+	game      *game
+	resources Resources
+}
+
+func (f *gameFrame) init() {
+	f.newGame()
+	f.resources.LoadSound("back_music").PlayLooping()
+}
+
+func (f *gameFrame) newGame() {
+	f.game = &game{
+		resources:     f.resources,
 		gateGlowDelta: 0.02,
 	}
-	g.init()
-	return g
+	f.game.init()
+}
+
+func (f *gameFrame) Frame(events []InputEvent) {
+	for _, e := range events {
+		if e.Key == KeyRestart && !e.Down {
+			f.newGame()
+			events = nil
+			break
+		}
+	}
+
+	f.game.Frame(events)
+}
+
+func (f *gameFrame) SetScreenSize(width, height int) {
+	f.game.SetScreenSize(width, height)
 }
 
 type camera struct {
@@ -130,8 +163,6 @@ type game struct {
 	resources Resources
 
 	camera camera
-
-	music Sound
 
 	helpImage    Image
 	cavemanStand Image
@@ -331,9 +362,6 @@ func (g *game) init() {
 		}
 	}
 	g.camera.setWorldSize(g.tileMap.worldSize())
-
-	g.music = g.resources.LoadSound("back_music")
-	g.music.PlayLooping()
 }
 
 func (g *game) SetScreenSize(width, height int) {
