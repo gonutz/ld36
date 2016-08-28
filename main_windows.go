@@ -36,8 +36,6 @@ func init() {
 }
 
 const (
-	version = "1"
-
 	vertexFormat = d3d9.FVF_XYZRHW | d3d9.FVF_DIFFUSE | d3d9.FVF_TEX1
 	vertexStride = 28
 )
@@ -99,7 +97,7 @@ func main() {
 		log.Fatal("unable to open window: ", err)
 	}
 	cWindow := C.HWND(unsafe.Pointer(w32Window))
-	w32.SetWindowText(w32Window, "LD36 - v"+version)
+	w32.SetWindowText(w32Window, "Reinventing the Wheel")
 	fullscreen := true
 	//fullscreen = false // NOTE toggle comment on this line for debugging
 	if fullscreen {

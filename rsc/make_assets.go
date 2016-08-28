@@ -58,6 +58,9 @@ func main() {
 
 	rocks := loadXCF("rock")
 	compile(rocks, "rock", "rock")
+	info.RockHitBox = scaleRect(
+		extractCollisionRect(rocks.GetLayerByName("collision")), 0.25,
+	)
 
 	gates := loadXCF("gate")
 	compile(gates, "a", "gate_a")
