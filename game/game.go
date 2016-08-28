@@ -171,9 +171,15 @@ type rock struct {
 }
 
 func (r *rock) push(xDir int) {
-	if xDir > 0 {
+	acceleration := float32(0.05)
+	if xDir < 0 {
+		acceleration = -acceleration
+	}
+	r.speedX += acceleration
+	if r.speedX > 3 {
 		r.speedX = 3
-	} else {
+	}
+	if r.speedX < -3 {
 		r.speedX = -3
 	}
 }
@@ -442,11 +448,7 @@ func (g *game) Frame(events []InputEvent) {
 		caveman = g.cavemanPush
 	}
 	if !g.cavemanIsOnGround {
-		if g.cavemanSpeedY > 0 {
-			caveman = g.cavemanStand
-		} else {
-			caveman = g.cavemanFall
-		}
+		caveman = g.cavemanFall
 	}
 	caveman.DrawAtEx(g.cavemanX, g.cavemanY, flipX(g.cavemanFacesRight))
 
