@@ -32,7 +32,7 @@ type Resources interface {
 type DrawOptions struct {
 	FlipX             bool
 	Transparency      float32
-	CenterRotationDeg int
+	CenterRotationDeg float32
 }
 
 type Image interface {
@@ -164,8 +164,47 @@ type game struct {
 }
 
 type rock struct {
-	x, y     int
-	rotation int
+	Rectangle
+	speedX   float32
+	speedY   int
+	rotation float32
+}
+
+func (r *rock) push(xDir int) {
+	if xDir > 0 {
+		r.speedX = 3
+	} else {
+		r.speedX = -3
+	}
+}
+
+func (r *rock) update(m *tileMap) {
+	dx, hitWall := m.moveInX(r.Rectangle, int(r.speedX+0.5))
+	r.X += dx
+	r.rotation += float32(dx) * 0.667
+	if hitWall {
+		r.speedX = 0
+	}
+	const xGravity = 0.025
+	if r.speedX > 0 {
+		r.speedX -= xGravity
+		if r.speedX < 0 {
+			r.speedX = 0
+		}
+	}
+	if r.speedX < 0 {
+		r.speedX += xGravity
+		if r.speedX > 0 {
+			r.speedX = 0
+		}
+	}
+
+	r.speedY -= 2
+	dy, hitMap := m.moveInY(r.Rectangle, r.speedY)
+	r.Y += dy
+	if hitMap {
+		r.speedY = 0
+	}
 }
 
 func (g *game) loadImage(id string) Image {
@@ -242,9 +281,14 @@ func (g *game) init() {
 						g.exitX, g.exitY = worldX, worldY
 					}
 					if id == objRock {
+						rockW, rockH := g.rock.Size()
 						r := rock{
-							x: worldX,
-							y: worldY,
+							Rectangle: Rectangle{
+								X: worldX,
+								Y: worldY,
+								W: rockW,
+								H: rockH,
+							},
 						}
 						g.rocks = append(g.rocks, r)
 					}
@@ -303,6 +347,12 @@ func (g *game) Frame(events []InputEvent) {
 		}
 	}
 
+	for i := range g.rocks {
+		g.rocks[i].update(&g.tileMap)
+	}
+
+	cavemanPushing := false
+
 	const speed = 7
 	var cavemanDx int
 	if g.leftDown && !g.rightDown {
@@ -332,13 +382,26 @@ func (g *game) Frame(events []InputEvent) {
 	}
 	var dx, dy int
 	dx, _ = g.tileMap.moveInX(cavemanRect, cavemanDx)
-	dx, _ = g.moveCavemanInX(cavemanRect, dx)
+	if dx != 0 {
+		newDx, hitRock, rock := g.moveCavemanInX(cavemanRect, dx)
+		if hitRock && g.cavemanIsOnGround {
+			cavemanPushing = true
+			rock.push(dx)
+		}
+		dx = newDx
+	}
 	cavemanRect.X += dx
-	dy, g.cavemanIsOnGround = g.tileMap.moveInY(cavemanRect, g.cavemanSpeedY)
-	var standsOnObject bool
-	dy, standsOnObject = g.moveCavemanInY(cavemanRect, dy)
-	if standsOnObject {
-		g.cavemanIsOnGround = true
+	var hitMap, hitObj bool
+	dy, hitMap = g.tileMap.moveInY(cavemanRect, g.cavemanSpeedY)
+	dy, hitObj = g.moveCavemanInY(cavemanRect, dy)
+	hitInY := hitMap || hitObj
+	g.cavemanIsOnGround = false
+	if hitInY {
+		if g.cavemanSpeedY < 0 {
+			g.cavemanIsOnGround = true
+		} else {
+			g.cavemanSpeedY = 0
+		}
 	}
 	cavemanRect.Y += dy
 
@@ -375,6 +438,9 @@ func (g *game) Frame(events []InputEvent) {
 	}
 
 	caveman := g.cavemanStand
+	if cavemanPushing {
+		caveman = g.cavemanPush
+	}
 	if !g.cavemanIsOnGround {
 		if g.cavemanSpeedY > 0 {
 			caveman = g.cavemanStand
@@ -386,8 +452,8 @@ func (g *game) Frame(events []InputEvent) {
 
 	for i := range g.rocks {
 		g.rock.DrawAtEx(
-			g.rocks[i].x,
-			g.rocks[i].y,
+			g.rocks[i].X,
+			g.rocks[i].Y,
 			centerRotation(g.rocks[i].rotation),
 		)
 	}
@@ -416,11 +482,11 @@ func (o DrawOptions) opacity(value float32) DrawOptions {
 	return o
 }
 
-func centerRotation(value int) DrawOptions {
+func centerRotation(value float32) DrawOptions {
 	return DrawOptions{CenterRotationDeg: value}
 }
 
-func (o DrawOptions) centerRotation(value int) DrawOptions {
+func (o DrawOptions) centerRotation(value float32) DrawOptions {
 	o.CenterRotationDeg = value
 	return o
 }
@@ -467,21 +533,12 @@ func (m *tileMap) tileAt(tileX, tileY int) *tile {
 	}
 	return &m.tiles[tileX+tileY*m.width]
 }
+
 func (m *tileMap) worldSize() (int, int) {
 	return m.width * m.tileW, m.height * m.tileH
 }
 
-func (g *game) rockBounds(rockIndex int) Rectangle {
-	w, h := g.rock.Size()
-	return Rectangle{
-		g.rocks[rockIndex].x,
-		g.rocks[rockIndex].y,
-		w,
-		h,
-	}
-}
-
-func (g *game) moveCavemanInX(start Rectangle, dx int) (realDx int, hitObject bool) {
+func (g *game) moveCavemanInX(start Rectangle, dx int) (realDx int, hitObject bool, hit *rock) {
 	startX := start.X
 	if dx < 0 {
 		r := start
@@ -489,11 +546,12 @@ func (g *game) moveCavemanInX(start Rectangle, dx int) (realDx int, hitObject bo
 		r.W -= dx
 		newX := r.X
 		for i := range g.rocks {
-			bounds := g.rockBounds(i)
+			bounds := g.rocks[i].Rectangle
 			if r.overlaps(bounds) {
 				right := bounds.X + bounds.W
 				if right > newX {
 					newX = right
+					hit = &g.rocks[i]
 				}
 			}
 		}
@@ -506,11 +564,12 @@ func (g *game) moveCavemanInX(start Rectangle, dx int) (realDx int, hitObject bo
 		r.W += dx
 		newRight := r.X + r.W - 1
 		for i := range g.rocks {
-			bounds := g.rockBounds(i)
+			bounds := g.rocks[i].Rectangle
 			if r.overlaps(bounds) {
 				left := bounds.X - 1
 				if left < newRight {
 					newRight = left
+					hit = &g.rocks[i]
 				}
 			}
 		}
@@ -532,7 +591,7 @@ func (g *game) moveCavemanInY(start Rectangle, dy int) (realDy int, hitObject bo
 		r.H -= dy
 		newY := r.Y
 		for i := range g.rocks {
-			bounds := g.rockBounds(i)
+			bounds := g.rocks[i].Rectangle
 			if r.overlaps(bounds) {
 				bottom := bounds.Y + bounds.H
 				if bottom > newY {
@@ -549,7 +608,7 @@ func (g *game) moveCavemanInY(start Rectangle, dy int) (realDy int, hitObject bo
 		r.H += dy
 		newBottom := r.Y + r.H - 1
 		for i := range g.rocks {
-			bounds := g.rockBounds(i)
+			bounds := g.rocks[i].Rectangle
 			if r.overlaps(bounds) {
 				top := bounds.Y - 1
 				if top < newBottom {

@@ -536,7 +536,7 @@ func (img textureImage) DrawAtEx(x, y int, options game.DrawOptions) {
 	img.draw(x, y, options.FlipX, options.CenterRotationDeg, 1-options.Transparency)
 }
 
-func (img textureImage) draw(x, y int, flipX bool, degrees int, alpha float32) {
+func (img textureImage) draw(x, y int, flipX bool, degrees float32, alpha float32) {
 	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
 		log.Println("DrawAt: device.SetTexture failed:", err)
 		return
