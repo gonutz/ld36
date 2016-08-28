@@ -191,7 +191,8 @@ type game struct {
 
 	helpImage    Image
 	cavemanStand Image
-	cavemanPush  Image
+	cavemanWalk  [4]Image
+	cavemanPush  [4]Image
 	cavemanFall  Image
 	rock         Image
 	gateGlowA    Image
@@ -202,11 +203,16 @@ type game struct {
 	gateGlowRatio float32
 	gateGlowDelta float32
 
-	cavemanX, cavemanY int
-	cavemanSpeedY      int
-	cavemanIsOnGround  bool
-	cavemanFacesRight  bool
-	cavemanHitBox      Rectangle
+	pushFrameIndex      int
+	nextPushFrameChange int
+
+	cavemanX, cavemanY  int
+	cavemanSpeedY       int
+	cavemanIsOnGround   bool
+	cavemanFacesRight   bool
+	cavemanHitBox       Rectangle
+	walkFrameIndex      int
+	nextWalkFrameChange int
 
 	exitX, exitY   int
 	exitFacesRight bool
@@ -282,7 +288,14 @@ func (g *game) init(info Info, levelIndex int) {
 
 	g.helpImage = g.resources.LoadImage("controls")
 	g.cavemanStand = g.loadImage("caveman_stand_left")
-	g.cavemanPush = g.loadImage("caveman_push_left")
+	g.cavemanPush[0] = g.loadImage("caveman_push_left_0")
+	g.cavemanPush[1] = g.loadImage("caveman_push_left_1")
+	g.cavemanPush[2] = g.loadImage("caveman_push_left_2")
+	g.cavemanPush[3] = g.loadImage("caveman_push_left_3")
+	g.cavemanWalk[0] = g.loadImage("caveman_walk_left_0")
+	g.cavemanWalk[1] = g.loadImage("caveman_walk_left_1")
+	g.cavemanWalk[2] = g.loadImage("caveman_walk_left_2")
+	g.cavemanWalk[3] = g.loadImage("caveman_walk_left_3")
 	g.cavemanFall = g.loadImage("caveman_fall_left")
 	g.rock = g.loadImage("rock")
 	g.gateGlowA = g.loadImage("gate_a")
@@ -497,6 +510,18 @@ func (g *game) Frame(events []InputEvent) {
 		g.gateGlowDelta = -g.gateGlowDelta
 	}
 
+	g.nextPushFrameChange++
+	if g.nextPushFrameChange > 10 {
+		g.nextPushFrameChange = 0
+		g.pushFrameIndex = (g.pushFrameIndex + 1) % len(g.cavemanPush)
+	}
+
+	g.nextWalkFrameChange++
+	if g.nextWalkFrameChange > 7 {
+		g.nextWalkFrameChange = 0
+		g.walkFrameIndex = (g.walkFrameIndex + 1) % len(g.cavemanWalk)
+	}
+
 	// render
 	var empty Rectangle
 	for y := 0; y < g.tileMap.height; y++ {
@@ -513,11 +538,12 @@ func (g *game) Frame(events []InputEvent) {
 	g.gateGlowB.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight).opacity(g.gateGlowRatio))
 
 	caveman := g.cavemanStand
-	if cavemanPushing {
-		caveman = g.cavemanPush
-	}
 	if !g.cavemanIsOnGround {
 		caveman = g.cavemanFall
+	} else if cavemanPushing {
+		caveman = g.cavemanPush[g.pushFrameIndex]
+	} else if xor(g.leftDown, g.rightDown) {
+		caveman = g.cavemanWalk[g.walkFrameIndex]
 	}
 	if !g.enteringGate || !g.cloudDisappearing {
 		caveman.DrawAtEx(
@@ -559,6 +585,10 @@ func (g *game) Frame(events []InputEvent) {
 	}
 
 	g.helpImage.DrawAt(0, 0)
+}
+
+func xor(a, b bool) bool {
+	return a && !b || !a && b
 }
 
 func (g *game) levelFinished() bool {

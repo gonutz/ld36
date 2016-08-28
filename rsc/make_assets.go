@@ -43,7 +43,14 @@ func main() {
 
 	caveman := loadXCF("caveman")
 	compile(caveman, "stand left", "caveman_stand_left")
-	compile(caveman, "push left", "caveman_push_left")
+	compile(caveman, "push left 1", "caveman_push_left_0")
+	compile(caveman, "push left 2", "caveman_push_left_1")
+	compile(caveman, "push left 3", "caveman_push_left_2")
+	compile(caveman, "push left 4", "caveman_push_left_3")
+	compile(caveman, "walk left 1", "caveman_walk_left_0")
+	compile(caveman, "walk left 2", "caveman_walk_left_1")
+	compile(caveman, "walk left 3", "caveman_walk_left_2")
+	compile(caveman, "walk left 4", "caveman_walk_left_3")
 	compile(caveman, "fall left", "caveman_fall_left")
 	info.CavemanHitBox = scaleRect(
 		extractCollisionRect(caveman.GetLayerByName("collision")), 0.25,
@@ -80,20 +87,19 @@ func main() {
 	//savePng(sheet, "tiles") // for editing in Tiled
 	savePng(swapRedBlue(sheet), "tiles") // for the final game
 
-	infoBuffer := bytes.NewBuffer(nil)
-	check(json.NewEncoder(infoBuffer).Encode(info))
-	check(ioutil.WriteFile(
-		filepath.Join(sourcePath, "rsc", "info.json"),
-		infoBuffer.Bytes(),
-		0666,
-	))
-
 	output := blob.New()
 
 	assetFiles := []string{
 		"back_music.wav",
 		"caveman_fall_left.png",
-		"caveman_push_left.png",
+		"caveman_push_left_0.png",
+		"caveman_push_left_1.png",
+		"caveman_push_left_2.png",
+		"caveman_push_left_3.png",
+		"caveman_walk_left_0.png",
+		"caveman_walk_left_1.png",
+		"caveman_walk_left_2.png",
+		"caveman_walk_left_3.png",
 		"caveman_stand_left.png",
 		"controls.png",
 		"gate_a.png",
@@ -101,7 +107,6 @@ func main() {
 		"gate_cloud.png",
 		"cloud.wav",
 		"info.json",
-		"level_0.tmx",
 		"rock.png",
 		"tiles.png",
 	}
@@ -115,6 +120,14 @@ func main() {
 			info.LevelCount++
 		}
 	}
+
+	infoBuffer := bytes.NewBuffer(nil)
+	check(json.NewEncoder(infoBuffer).Encode(info))
+	check(ioutil.WriteFile(
+		filepath.Join(sourcePath, "rsc", "info.json"),
+		infoBuffer.Bytes(),
+		0666,
+	))
 
 	for _, name := range assetFiles {
 		data, err := ioutil.ReadFile(filepath.Join(sourcePath, "rsc", name))
