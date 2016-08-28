@@ -56,6 +56,11 @@ func main() {
 	compile(gates, "a", "gate_a")
 	compile(gates, "b", "gate_b")
 
+	savePng(
+		swapRedBlue(makeTransparentAreasBlack(loadPng("gate_cloud_original"))),
+		"gate_cloud",
+	)
+
 	infoBuffer := bytes.NewBuffer(nil)
 	check(json.NewEncoder(infoBuffer).Encode(info))
 	check(ioutil.WriteFile(
@@ -93,12 +98,14 @@ func main() {
 		"controls.png",
 		"gate_a.png",
 		"gate_b.png",
+		"gate_cloud.png",
+		"cloud.wav",
 		"info.json",
 		"level_0.tmx",
 		"rock.png",
 		"tiles.png",
 	} {
-		data, err := ioutil.ReadFile(name)
+		data, err := ioutil.ReadFile(filepath.Join(sourcePath, "rsc", name))
 		check(err)
 		output.Append(name, data)
 	}
@@ -130,6 +137,16 @@ func savePng(img image.Image, name string) {
 	check(err)
 	defer file.Close()
 	check(png.Encode(file, img))
+}
+
+func loadPng(name string) image.Image {
+	path := filepath.Join(sourcePath, "rsc", name+".png")
+	file, err := os.Open(path)
+	check(err)
+	defer file.Close()
+	img, err := png.Decode(file)
+	check(err)
+	return img
 }
 
 func scaleImage(img image.Image, f float64) image.Image {

@@ -43,6 +43,7 @@ type Image interface {
 }
 
 type Sound interface {
+	Play()
 	PlayLooping()
 }
 
@@ -164,6 +165,11 @@ type game struct {
 
 	camera camera
 
+	enteringGate      bool
+	cloudDisappearing bool
+	exitGlow          float32
+	cloudSound        Sound
+
 	helpImage    Image
 	cavemanStand Image
 	cavemanPush  Image
@@ -171,6 +177,7 @@ type game struct {
 	rock         Image
 	gateGlowA    Image
 	gateGlowB    Image
+	gateCloud    Image
 	tiles        Image
 
 	gateGlowRatio float32
@@ -267,7 +274,10 @@ func (g *game) init() {
 	g.rock = g.loadImage("rock")
 	g.gateGlowA = g.loadImage("gate_a")
 	g.gateGlowB = g.loadImage("gate_b")
+	g.gateCloud = g.loadImage("gate_cloud")
 	g.tiles = g.loadImage("tiles")
+
+	g.cloudSound = g.resources.LoadSound("cloud")
 
 	level, err := tiled.Read(bytes.NewReader(g.resources.LoadFile("level_0.tmx")))
 	if err != nil {
@@ -381,6 +391,12 @@ func (g *game) Frame(events []InputEvent) {
 		}
 	}
 
+	if g.enteringGate {
+		g.leftDown = false
+		g.rightDown = false
+		g.upDown = false
+	}
+
 	for i := range g.rocks {
 		g.rocks[i].update(&g.tileMap)
 	}
@@ -439,6 +455,14 @@ func (g *game) Frame(events []InputEvent) {
 	}
 	cavemanRect.Y += dy
 
+	cavemanCenterX := cavemanRect.X + cavemanRect.W/2
+	if !g.enteringGate &&
+		cavemanRect.Y == g.exitY &&
+		cavemanCenterX < g.exitX-20 && cavemanCenterX > g.exitX-100 {
+		g.enteringGate = true
+		g.cloudSound.Play()
+	}
+
 	g.cavemanX = cavemanRect.X - g.cavemanHitBox.X
 	g.cavemanY = cavemanRect.Y - g.cavemanHitBox.Y
 	g.camera.centerAround(
@@ -471,6 +495,9 @@ func (g *game) Frame(events []InputEvent) {
 		}
 	}
 
+	g.gateGlowA.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight))
+	g.gateGlowB.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight).opacity(g.gateGlowRatio))
+
 	caveman := g.cavemanStand
 	if cavemanPushing {
 		caveman = g.cavemanPush
@@ -478,7 +505,36 @@ func (g *game) Frame(events []InputEvent) {
 	if !g.cavemanIsOnGround {
 		caveman = g.cavemanFall
 	}
-	caveman.DrawAtEx(g.cavemanX, g.cavemanY, flipX(g.cavemanFacesRight))
+	if !g.enteringGate || !g.cloudDisappearing {
+		caveman.DrawAtEx(
+			g.cavemanX,
+			g.cavemanY,
+			flipX(g.cavemanFacesRight).opacity(1-g.exitGlow),
+		)
+	}
+
+	if g.enteringGate {
+		const cloudSpeed = 0.008
+		if !g.cloudDisappearing {
+			g.exitGlow += cloudSpeed
+			if g.exitGlow > 1 {
+				g.exitGlow = 1
+				g.cloudDisappearing = true
+			}
+		} else {
+			g.exitGlow -= cloudSpeed
+			if g.exitGlow < 0 {
+				g.exitGlow = 0
+				log.Fatal("TODO: load the next level")
+			}
+		}
+
+		g.gateCloud.DrawAtEx(
+			g.exitX-200,
+			g.exitY-20,
+			flipX(g.exitFacesRight).opacity(g.exitGlow),
+		)
+	}
 
 	for i := range g.rocks {
 		g.rock.DrawAtEx(
@@ -487,9 +543,6 @@ func (g *game) Frame(events []InputEvent) {
 			centerRotation(g.rocks[i].rotation),
 		)
 	}
-
-	g.gateGlowA.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight))
-	g.gateGlowB.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight).opacity(g.gateGlowRatio))
 
 	g.helpImage.DrawAt(0, 0)
 }

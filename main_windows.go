@@ -454,6 +454,7 @@ func (r *resources) LoadFile(id string) []byte {
 
 type dummySound struct{}
 
+func (dummySound) Play()        {}
 func (dummySound) PlayLooping() {}
 
 func (r *resources) LoadSound(id string) game.Sound {
@@ -484,6 +485,10 @@ func (s sound) PlayLooping() {
 			s.source.PlayOnce()
 		}
 	}()
+}
+
+func (s sound) Play() {
+	s.source.PlayOnce()
 }
 
 func mustLoadWav(id string) mixer.SoundSource {
