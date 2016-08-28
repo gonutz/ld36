@@ -11,6 +11,7 @@ import (
 
 type Game interface {
 	Frame([]InputEvent)
+	SetScreenSize(width, height int)
 }
 
 type Resources interface {
@@ -44,8 +45,32 @@ func New(resources Resources) Game {
 	return g
 }
 
+type camera struct {
+	offsetX, offsetY int
+}
+
+type cameraImage struct {
+	Image
+	camera *camera
+}
+
+func (img cameraImage) DrawAt(x, y int) {
+	img.Image.DrawAt(x+img.camera.offsetX, y+img.camera.offsetY)
+}
+
+func (img cameraImage) DrawAtEx(x, y int, options DrawOptions) {
+	img.Image.DrawAtEx(x+img.camera.offsetX, y+img.camera.offsetY, options)
+}
+
+func (img cameraImage) DrawRectAt(x, y int, source Rectangle) {
+	img.Image.DrawRectAt(x+img.camera.offsetX, y+img.camera.offsetY, source)
+}
+
 type game struct {
 	resources Resources
+
+	screenW, screenH int
+	camera           camera
 
 	caveman     Image
 	cavemanPush Image
@@ -71,14 +96,21 @@ type game struct {
 	tileMap tileMap
 }
 
+func (g *game) loadImage(id string) Image {
+	return cameraImage{
+		Image:  g.resources.LoadImage(id),
+		camera: &g.camera,
+	}
+}
+
 func (g *game) init() {
-	g.caveman = g.resources.LoadImage("caveman_stand_left")
-	g.cavemanPush = g.resources.LoadImage("caveman_push_left")
-	g.cavemanFall = g.resources.LoadImage("caveman_fall_left")
-	g.rock = g.resources.LoadImage("rock")
-	g.gateGlowA = g.resources.LoadImage("gate_a")
-	g.gateGlowB = g.resources.LoadImage("gate_b")
-	g.tiles = g.resources.LoadImage("tiles")
+	g.caveman = g.loadImage("caveman_stand_left")
+	g.cavemanPush = g.loadImage("caveman_push_left")
+	g.cavemanFall = g.loadImage("caveman_fall_left")
+	g.rock = g.loadImage("rock")
+	g.gateGlowA = g.loadImage("gate_a")
+	g.gateGlowB = g.loadImage("gate_b")
+	g.tiles = g.loadImage("tiles")
 
 	level, err := tiled.Read(bytes.NewReader(g.resources.LoadFile("level_0.tmx")))
 	if err != nil {
@@ -140,6 +172,10 @@ func (g *game) init() {
 	}
 }
 
+func (g *game) SetScreenSize(width, height int) {
+	g.screenW, g.screenH = width, height
+}
+
 func (g *game) Frame(events []InputEvent) {
 	// handle events
 	for _, e := range events {
@@ -169,6 +205,8 @@ func (g *game) Frame(events []InputEvent) {
 	newCavemanRect, _ = g.tileMap.moveInY(newCavemanRect, -5)
 	g.cavemanX = newCavemanRect.X
 	g.cavemanY = newCavemanRect.Y
+	g.camera.offsetX = -g.cavemanX + (g.screenW-cavemanW)/2
+	g.camera.offsetY = -g.cavemanY + (g.screenH-cavemanH)/2
 
 	g.gateGlowRatio += g.gateGlowDelta
 	if g.gateGlowRatio < 0 {

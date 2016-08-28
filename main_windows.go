@@ -213,6 +213,7 @@ func main() {
 			device.Clear(nil, d3d9.CLEAR_TARGET, d3d9.ColorRGB(0, 95, 83), 1, 0)
 			device.BeginScene()
 
+			g.SetScreenSize(windowW, windowH)
 			g.Frame(events)
 			events = events[0:0]
 
