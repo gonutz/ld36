@@ -56,6 +56,46 @@ func New(resources Resources) Game {
 
 type camera struct {
 	offsetX, offsetY int
+	screenW, screenH int
+	worldW, worldH   int
+}
+
+func (c *camera) setWorldSize(w, h int) {
+	c.worldW, c.worldH = w, h
+}
+
+func (c *camera) setScreenSize(w, h int) {
+	c.screenW, c.screenH = w, h
+}
+
+func (c *camera) centerAround(x, y int) {
+	c.offsetX, c.offsetY = c.screenW/2-x, c.screenH/2-y
+	// clamp X
+	if c.offsetX > 0 {
+		c.offsetX = 0
+	}
+	minX := -(c.worldW - c.screenW)
+	if c.offsetX < minX {
+		c.offsetX = minX
+	}
+	if c.worldW < c.screenW {
+		c.offsetX = (c.screenW - c.worldW) / 2
+	}
+	// clamp Y
+	if c.offsetY > 0 {
+		c.offsetY = 0
+	}
+	minY := -(c.worldH - c.screenH)
+	if c.offsetY < minY {
+		c.offsetY = minY
+	}
+	if c.worldH < c.screenH {
+		c.offsetY = (c.screenH - c.worldH) / 2
+	}
+}
+
+func (c *camera) transformXY(x, y int) (int, int) {
+	return x + c.offsetX, y + c.offsetY
 }
 
 type cameraImage struct {
@@ -64,22 +104,23 @@ type cameraImage struct {
 }
 
 func (img cameraImage) DrawAt(x, y int) {
-	img.Image.DrawAt(x+img.camera.offsetX, y+img.camera.offsetY)
+	img.Image.DrawAt(img.camera.transformXY(x, y))
 }
 
 func (img cameraImage) DrawAtEx(x, y int, options DrawOptions) {
-	img.Image.DrawAtEx(x+img.camera.offsetX, y+img.camera.offsetY, options)
+	x, y = img.camera.transformXY(x, y)
+	img.Image.DrawAtEx(x, y, options)
 }
 
 func (img cameraImage) DrawRectAt(x, y int, source Rectangle) {
-	img.Image.DrawRectAt(x+img.camera.offsetX, y+img.camera.offsetY, source)
+	x, y = img.camera.transformXY(x, y)
+	img.Image.DrawRectAt(x, y, source)
 }
 
 type game struct {
 	resources Resources
 
-	screenW, screenH int
-	camera           camera
+	camera camera
 
 	cavemanStand Image
 	cavemanPush  Image
@@ -224,10 +265,11 @@ func (g *game) init() {
 			}
 		}
 	}
+	g.camera.setWorldSize(g.tileMap.worldSize())
 }
 
 func (g *game) SetScreenSize(width, height int) {
-	g.screenW, g.screenH = width, height
+	g.camera.setScreenSize(width, height)
 }
 
 func (g *game) Frame(events []InputEvent) {
@@ -264,8 +306,10 @@ func (g *game) Frame(events []InputEvent) {
 	cavemanRect, _ = g.tileMap.moveInY(cavemanRect, -5)
 	g.cavemanX = cavemanRect.X - g.cavemanHitBox.X
 	g.cavemanY = cavemanRect.Y - g.cavemanHitBox.Y
-	g.camera.offsetX = -g.cavemanX + (g.screenW-cavemanW)/2
-	g.camera.offsetY = -g.cavemanY + (g.screenH-cavemanH)/2
+	g.camera.centerAround(
+		g.cavemanX+cavemanW/2,
+		g.cavemanY+cavemanH/2,
+	)
 
 	g.gateGlowRatio += g.gateGlowDelta
 	if g.gateGlowRatio < 0 {
@@ -375,6 +419,9 @@ func (m *tileMap) tileAt(tileX, tileY int) *tile {
 		return &tile{}
 	}
 	return &m.tiles[tileX+tileY*m.width]
+}
+func (m *tileMap) worldSize() (int, int) {
+	return m.width * m.tileW, m.height * m.tileH
 }
 
 func (m *tileMap) moveInX(start Rectangle, dx int) (end Rectangle, hitWall bool) {
