@@ -133,6 +133,7 @@ type game struct {
 
 	music Sound
 
+	helpImage    Image
 	cavemanStand Image
 	cavemanPush  Image
 	cavemanFall  Image
@@ -183,6 +184,7 @@ func (g *game) init() {
 	}
 	g.cavemanHitBox = info.CavemanHitBox
 
+	g.helpImage = g.resources.LoadImage("controls")
 	g.cavemanStand = g.loadImage("caveman_stand_left")
 	g.cavemanPush = g.loadImage("caveman_push_left")
 	g.cavemanFall = g.loadImage("caveman_fall_left")
@@ -392,6 +394,8 @@ func (g *game) Frame(events []InputEvent) {
 
 	g.gateGlowA.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight))
 	g.gateGlowB.DrawAtEx(g.exitX, g.exitY, flipX(g.exitFacesRight).opacity(g.gateGlowRatio))
+
+	g.helpImage.DrawAt(0, 0)
 }
 
 func flipX(value bool) DrawOptions {

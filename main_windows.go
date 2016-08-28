@@ -93,7 +93,7 @@ func main() {
 	w32Window, err := openWindow(
 		"LD36WindowClass",
 		handleMessage,
-		0, 0, 640, 480,
+		0, 0, 660, 500,
 	)
 	if err != nil {
 		log.Fatal("unable to open window: ", err)
