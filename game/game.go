@@ -64,13 +64,23 @@ func New(resources Resources) Game {
 }
 
 type gameFrame struct {
-	game      *game
-	resources Resources
+	game       *game
+	resources  Resources
+	info       Info
+	levelIndex int
 }
 
 func (f *gameFrame) init() {
-	f.newGame()
+	data := f.resources.LoadFile("info.json")
+	err := json.NewDecoder(bytes.NewReader(data)).Decode(&f.info)
+	if err != nil {
+		log.Fatal("unable to decode game info json file: ", err)
+	}
+
+	// start background music
 	f.resources.LoadSound("back_music").PlayLooping()
+
+	f.newGame()
 }
 
 func (f *gameFrame) newGame() {
@@ -78,7 +88,7 @@ func (f *gameFrame) newGame() {
 		resources:     f.resources,
 		gateGlowDelta: 0.02,
 	}
-	f.game.init()
+	f.game.init(f.info, f.levelIndex)
 }
 
 func (f *gameFrame) Frame(events []InputEvent) {
@@ -91,6 +101,14 @@ func (f *gameFrame) Frame(events []InputEvent) {
 	}
 
 	f.game.Frame(events)
+
+	if f.game.levelFinished() {
+		f.levelIndex++
+		if f.levelIndex >= f.info.LevelCount {
+			f.levelIndex = 0
+		}
+		f.newGame()
+	}
 }
 
 func (f *gameFrame) SetScreenSize(width, height int) {
@@ -165,6 +183,7 @@ type game struct {
 
 	camera camera
 
+	levelDone         bool
 	enteringGate      bool
 	cloudDisappearing bool
 	exitGlow          float32
@@ -258,13 +277,7 @@ func (g *game) loadImage(id string) Image {
 	}
 }
 
-func (g *game) init() {
-	var info Info
-	data := g.resources.LoadFile("info.json")
-	err := json.NewDecoder(bytes.NewReader(data)).Decode(&info)
-	if err != nil {
-		log.Fatal("unable to decode game info json file: ", err)
-	}
+func (g *game) init(info Info, levelIndex int) {
 	g.cavemanHitBox = info.CavemanHitBox
 
 	g.helpImage = g.resources.LoadImage("controls")
@@ -279,9 +292,10 @@ func (g *game) init() {
 
 	g.cloudSound = g.resources.LoadSound("cloud")
 
-	level, err := tiled.Read(bytes.NewReader(g.resources.LoadFile("level_0.tmx")))
+	levelName := "level_" + strconv.Itoa(levelIndex) + ".tmx"
+	level, err := tiled.Read(bytes.NewReader(g.resources.LoadFile(levelName)))
 	if err != nil {
-		log.Fatal("unable to decode level_0.tmx: ", err)
+		log.Fatalf("unable to decode %v: ", levelName, err)
 	}
 
 	g.tileMap.setSize(level.Width, level.Height)
@@ -514,7 +528,7 @@ func (g *game) Frame(events []InputEvent) {
 	}
 
 	if g.enteringGate {
-		const cloudSpeed = 0.008
+		const cloudSpeed = 0.0077
 		if !g.cloudDisappearing {
 			g.exitGlow += cloudSpeed
 			if g.exitGlow > 1 {
@@ -525,7 +539,7 @@ func (g *game) Frame(events []InputEvent) {
 			g.exitGlow -= cloudSpeed
 			if g.exitGlow < 0 {
 				g.exitGlow = 0
-				log.Fatal("TODO: load the next level")
+				g.levelDone = true
 			}
 		}
 
@@ -545,6 +559,10 @@ func (g *game) Frame(events []InputEvent) {
 	}
 
 	g.helpImage.DrawAt(0, 0)
+}
+
+func (g *game) levelFinished() bool {
+	return g.levelDone
 }
 
 func flipX(value bool) DrawOptions {

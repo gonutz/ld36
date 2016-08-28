@@ -61,14 +61,6 @@ func main() {
 		"gate_cloud",
 	)
 
-	infoBuffer := bytes.NewBuffer(nil)
-	check(json.NewEncoder(infoBuffer).Encode(info))
-	check(ioutil.WriteFile(
-		filepath.Join(sourcePath, "rsc", "info.json"),
-		infoBuffer.Bytes(),
-		0666,
-	))
-
 	// create tile sheet
 	tiles := loadXCF("tiles")
 	tileW, tileH := tiles.Layers[0].Bounds().Dx(), tiles.Layers[0].Bounds().Dy()
@@ -90,7 +82,7 @@ func main() {
 
 	output := blob.New()
 
-	for _, name := range []string{
+	assetFiles := []string{
 		"back_music.wav",
 		"caveman_fall_left.png",
 		"caveman_push_left.png",
@@ -104,11 +96,31 @@ func main() {
 		"level_0.tmx",
 		"rock.png",
 		"tiles.png",
-	} {
+	}
+
+	files, err := ioutil.ReadDir(filepath.Join(sourcePath, "rsc"))
+	check(err)
+	for _, f := range files {
+		name := f.Name()
+		if filepath.Ext(name) == ".tmx" {
+			assetFiles = append(assetFiles, name)
+			info.LevelCount++
+		}
+	}
+
+	for _, name := range assetFiles {
 		data, err := ioutil.ReadFile(filepath.Join(sourcePath, "rsc", name))
 		check(err)
 		output.Append(name, data)
 	}
+
+	infoBuffer := bytes.NewBuffer(nil)
+	check(json.NewEncoder(infoBuffer).Encode(info))
+	check(ioutil.WriteFile(
+		filepath.Join(sourcePath, "rsc", "info.json"),
+		infoBuffer.Bytes(),
+		0666,
+	))
 
 	file, err := os.Create(outputPath)
 	check(err)
