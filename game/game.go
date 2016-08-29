@@ -71,8 +71,6 @@ type gameFrame struct {
 }
 
 func (f *gameFrame) init() {
-	f.levelIndex = 2 // TODO
-
 	data := f.resources.LoadFile("info.json")
 	err := json.NewDecoder(bytes.NewReader(data)).Decode(&f.info)
 	if err != nil {
@@ -250,24 +248,19 @@ func (r *rock) push(xDir int) {
 	}
 }
 
-func (r *rock) update(m *tileMap, caveman Rectangle) {
-	dx, hitWall := m.moveInX(r.Rectangle, int(r.speedX+0.5))
-	r.X += dx
-	for r.overlaps(caveman) {
-		if dx > 0 {
-			dx--
-			r.X--
-		} else if dx < 0 {
-			dx++
-			r.X++
-		} else {
-			break
+func (r *rock) update(m *tileMap, caveman Rectangle, others []rock, myIndex int) {
+	overlapsOther := func(r Rectangle) bool {
+		for i := range others {
+			if i == myIndex {
+				continue
+			}
+			if others[i].overlaps(r) {
+				return true
+			}
 		}
+		return false
 	}
-	r.rotation += float32(dx) * 0.667
-	if hitWall {
-		r.speedX = 0
-	}
+
 	const xGravity = 0.025
 	if r.speedX > 0 {
 		r.speedX -= xGravity
@@ -282,19 +275,37 @@ func (r *rock) update(m *tileMap, caveman Rectangle) {
 		}
 	}
 
-	r.speedY -= 2
-	dy, hitMap := m.moveInY(r.Rectangle, r.speedY)
-	r.Y += dy
-	for r.overlaps(caveman) {
-		if dy > 0 {
-			dy--
-			r.Y--
-		} else if dy < 0 {
-			dy++
-			r.Y++
-		} else {
+	dx, hitWall := m.moveInX(r.Rectangle, int(r.speedX+0.5))
+	backoff := 1
+	if dx < 0 {
+		backoff = -1
+	}
+	r.X += dx
+	for r.overlaps(caveman) || overlapsOther(r.Rectangle) {
+		if dx == 0 {
 			break
 		}
+		dx -= backoff
+		r.X -= backoff
+	}
+	r.rotation += float32(dx) * 0.667
+	if hitWall {
+		r.speedX = 0
+	}
+
+	r.speedY -= 2
+	dy, hitMap := m.moveInY(r.Rectangle, r.speedY)
+	backoff = 1
+	if dy < 0 {
+		backoff = -1
+	}
+	r.Y += dy
+	for r.overlaps(caveman) || overlapsOther(r.Rectangle) {
+		if dy == 0 {
+			break
+		}
+		dy -= backoff
+		r.Y -= backoff
 	}
 	if hitMap {
 		r.speedY = 0
@@ -449,13 +460,14 @@ func (g *game) Frame(events []InputEvent) {
 		g.upDown = false
 	}
 
+	cavemanBounds := Rectangle{
+		g.cavemanX + g.cavemanHitBox.X,
+		g.cavemanY + g.cavemanHitBox.Y,
+		g.cavemanHitBox.W,
+		g.cavemanHitBox.H,
+	}
 	for i := range g.rocks {
-		g.rocks[i].update(&g.tileMap, Rectangle{
-			g.cavemanX + g.cavemanHitBox.X,
-			g.cavemanY + g.cavemanHitBox.Y,
-			g.cavemanHitBox.W,
-			g.cavemanHitBox.H,
-		})
+		g.rocks[i].update(&g.tileMap, cavemanBounds, g.rocks, i)
 	}
 
 	cavemanPushing := false
@@ -513,9 +525,14 @@ func (g *game) Frame(events []InputEvent) {
 	cavemanRect.Y += dy
 
 	cavemanCenterX := cavemanRect.X + cavemanRect.W/2
+	exitMinX, exitMaxX := g.exitX-100, g.exitX-20
+	if g.exitFacesRight {
+		w, _ := g.gateGlowA.Size()
+		exitMinX, exitMaxX = g.exitX+w+20, g.exitX+w+100
+	}
 	if !g.enteringGate &&
 		cavemanRect.Y == g.exitY &&
-		cavemanCenterX < g.exitX-20 && cavemanCenterX > g.exitX-100 {
+		cavemanCenterX > exitMinX && cavemanCenterX < exitMaxX {
 		g.enteringGate = true
 		g.cloudSound.Play()
 	}
@@ -607,11 +624,13 @@ func (g *game) Frame(events []InputEvent) {
 			}
 		}
 
-		g.gateCloud.DrawAtEx(
-			g.exitX-200,
-			g.exitY-20,
-			flipX(g.exitFacesRight).opacity(g.exitGlow),
-		)
+		x, y := g.exitX-200, g.exitY-20
+		if g.exitFacesRight {
+			w, _ := g.gateGlowA.Size()
+			cloudW, _ := g.gateCloud.Size()
+			x = g.exitX + w + 200 - cloudW
+		}
+		g.gateCloud.DrawAtEx(x, y, flipX(g.exitFacesRight).opacity(g.exitGlow))
 	}
 
 	g.helpImage.DrawAt(0, 0)
