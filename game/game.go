@@ -64,10 +64,13 @@ func New(resources Resources) Game {
 }
 
 type gameFrame struct {
-	game       *game
-	resources  Resources
-	info       Info
-	levelIndex int
+	game             *game
+	resources        Resources
+	screenW, screenH int
+	winImage         Image
+	info             Info
+	levelIndex       int
+	won              bool
 }
 
 func (f *gameFrame) init() {
@@ -76,6 +79,8 @@ func (f *gameFrame) init() {
 	if err != nil {
 		log.Fatal("unable to decode game info json file: ", err)
 	}
+
+	f.winImage = f.resources.LoadImage("win_screen")
 
 	// start background music
 	f.resources.LoadSound("back_music").PlayLooping()
@@ -92,6 +97,24 @@ func (f *gameFrame) newGame() {
 }
 
 func (f *gameFrame) Frame(events []InputEvent) {
+	if f.won {
+		for _, e := range events {
+			if e.Key == KeyRestart && !e.Down {
+				f.won = false
+				f.levelIndex = 0
+				f.newGame()
+				events = nil
+				break
+			}
+		}
+
+		w, h := f.winImage.Size()
+		x := (f.screenW - w) / 2
+		y := (f.screenH - h) / 2
+		f.winImage.DrawAt(x, y)
+		return
+	}
+
 	for _, e := range events {
 		if e.Key == KeyRestart && !e.Down {
 			f.newGame()
@@ -105,13 +128,15 @@ func (f *gameFrame) Frame(events []InputEvent) {
 	if f.game.levelFinished() {
 		f.levelIndex++
 		if f.levelIndex >= f.info.LevelCount {
-			f.levelIndex = 0
+			f.won = true
+			return
 		}
 		f.newGame()
 	}
 }
 
 func (f *gameFrame) SetScreenSize(width, height int) {
+	f.screenW, f.screenH = width, height
 	f.game.SetScreenSize(width, height)
 }
 

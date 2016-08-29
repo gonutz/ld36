@@ -108,6 +108,7 @@ func main() {
 		"gate_a.png",
 		"gate_b.png",
 		"gate_cloud.png",
+		"win_screen.png",
 		"cloud.wav",
 		"info.json",
 		"rock.png",

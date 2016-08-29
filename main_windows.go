@@ -69,7 +69,6 @@ func main() {
 			msg := fmt.Sprint("panic: ", err)
 			const MB_TOPMOST = 0x00040000
 			w32.MessageBox(0, msg, "Error", w32.MB_OK|w32.MB_ICONERROR|MB_TOPMOST)
-			//fatal("panic: ", err)
 		}
 	}()
 
