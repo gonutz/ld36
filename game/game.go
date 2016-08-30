@@ -332,7 +332,7 @@ func (r *rock) update(m *tileMap, caveman Rectangle, others []rock, myIndex int)
 		dy -= backoff
 		r.Y -= backoff
 	}
-	if hitMap {
+	if hitMap || dy == 0 {
 		r.speedY = 0
 	}
 }
