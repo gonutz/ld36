@@ -244,7 +244,7 @@ func handleMessage(window w32.HWND, message uint32, w, l uintptr) uintptr {
 			addEvent(game.KeyLeft, false)
 		case w32.VK_RIGHT:
 			addEvent(game.KeyRight, false)
-		case w32.VK_UP:
+		case w32.VK_UP, w32.VK_SPACE:
 			addEvent(game.KeyUp, false)
 		case w32.VK_F2:
 			addEvent(game.KeyRestart, false)
@@ -256,7 +256,7 @@ func handleMessage(window w32.HWND, message uint32, w, l uintptr) uintptr {
 			addEvent(game.KeyLeft, true)
 		case w32.VK_RIGHT:
 			addEvent(game.KeyRight, true)
-		case w32.VK_UP:
+		case w32.VK_UP, w32.VK_SPACE:
 			addEvent(game.KeyUp, true)
 		case w32.VK_F2:
 			addEvent(game.KeyRestart, true)
