@@ -6,6 +6,10 @@ go get github.com/gonutz/ld36/rsc
 go run make_assets.go ..\bin\blob
 cd ..
 
+go get github.com/akavel/rsrc
+rsrc -arch 386 -ico icon.ico -o rsrc_386.syso
+rsrc -arch amd64 -ico icon.ico -o rsrc_amd64.syso
+
 setlocal
 set GODEBUG=cgocheck=0
 go build -ldflags -H=windowsgui -o bin\ld36_no_data.exe

@@ -98,6 +98,24 @@ func main() {
 	}
 	cWindow := C.HWND(unsafe.Pointer(w32Window))
 	w32.SetWindowText(w32Window, "Reinventing the Wheel")
+	// the icon is contained in the .exe file as a resource, load it and set it
+	// as the window icon so it appears in the top-left corner of the window and
+	// when you alt+tab between windows
+	const iconResourceID = 10
+	iconHandle := C.LoadImage(
+		C.GetModuleHandle(nil),
+		(*C.CHAR)(unsafe.Pointer(w32.MakeIntResource(iconResourceID))),
+		C.IMAGE_ICON,
+		0,
+		0,
+		C.LR_DEFAULTSIZE|C.LR_SHARED,
+	)
+	if iconHandle != nil {
+		w32.SendMessage(w32Window, w32.WM_SETICON, w32.ICON_SMALL, uintptr(iconHandle))
+		w32.SendMessage(w32Window, w32.WM_SETICON, w32.ICON_SMALL2, uintptr(iconHandle))
+		w32.SendMessage(w32Window, w32.WM_SETICON, w32.ICON_BIG, uintptr(iconHandle))
+	}
+
 	fullscreen := true
 	//fullscreen = false // NOTE toggle comment on this line for debugging
 	if fullscreen {
