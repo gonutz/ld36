@@ -16,6 +16,7 @@ go build -ldflags -H=windowsgui -o bin\ld36_no_data.exe
 endlocal
 
 cd bin
+go get github.com/gonutz/payload/cmd/payload
 payload -exe=ld36_no_data.exe -data=blob -output ld36.exe
 cd ..
 
