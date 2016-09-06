@@ -300,7 +300,14 @@ func (r *rock) update(m *tileMap, caveman Rectangle, others []rock, myIndex int)
 		}
 	}
 
-	dx, hitWall := m.moveInX(r.Rectangle, int(r.speedX+0.5))
+	round := func(x float32) int {
+		if x < 0 {
+			return int(x - 0.5)
+		}
+		return int(x + 0.5)
+	}
+
+	dx, hitWall := m.moveInX(r.Rectangle, round(r.speedX))
 	backoff := 1
 	if dx < 0 {
 		backoff = -1
