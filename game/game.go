@@ -3,6 +3,7 @@ package game
 import (
 	"bytes"
 	"encoding/json"
+	"math/rand"
 	"strconv"
 	"strings"
 
@@ -254,9 +255,9 @@ type game struct {
 
 type rock struct {
 	Rectangle
-	speedX   float32
-	speedY   int
-	rotation float32
+	speedX      float32
+	speedY      int
+	rotationDeg float32
 }
 
 func (r *rock) push(xDir int) {
@@ -320,7 +321,7 @@ func (r *rock) update(m *tileMap, caveman Rectangle, others []rock, myIndex int)
 		dx -= backoff
 		r.X -= backoff
 	}
-	r.rotation += float32(dx) * 0.667
+	r.rotationDeg += float32(dx) * 0.667
 	if hitWall {
 		r.speedX = 0
 	}
@@ -385,6 +386,8 @@ func (g *game) init(info Info, levelIndex int) {
 	tileSheetW, tileSheetH := g.tiles.Size()
 	tileCountX := tileSheetW / g.tileMap.tileW
 	tileCountY := tileSheetH / g.tileMap.tileH
+	// make sure the rocks always start out the same way
+	rand.Seed(int64(levelIndex))
 	for i := range level.Layers {
 		if level.Layers[i].Name == "objects" {
 			objIndexOffset := 1 + tileCountX*tileCountY
@@ -431,6 +434,7 @@ func (g *game) init(info Info, levelIndex int) {
 								W: g.rockHitBox.W,
 								H: g.rockHitBox.H,
 							},
+							rotationDeg: float32(rand.Intn(360)),
 						}
 						g.rocks = append(g.rocks, r)
 					}
@@ -617,7 +621,7 @@ func (g *game) Frame(events []InputEvent) {
 		g.rock.DrawAtEx(
 			g.rocks[i].X-g.rockHitBox.X,
 			g.rocks[i].Y-g.rockHitBox.Y,
-			centerRotation(g.rocks[i].rotation),
+			centerRotation(g.rocks[i].rotationDeg),
 		)
 	}
 
