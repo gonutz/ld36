@@ -471,6 +471,11 @@ func (g *game) init(info Info, levelIndex int) {
 		}
 	}
 	g.camera.setWorldSize(g.tileMap.worldSize())
+
+	// make sure all pieces fall down to the ground before the first real frame
+	for i := 0; i < 10; i++ {
+		g.Frame(nil)
+	}
 }
 
 func (g *game) SetScreenSize(width, height int) {
