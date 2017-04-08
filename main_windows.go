@@ -1,9 +1,5 @@
 package main
 
-//#define _WIN32_WINNT 0x0500
-//#include <Windows.h>
-import "C"
-
 import (
 	"bytes"
 	"errors"
@@ -21,12 +17,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/AllenDang/w32"
 	"github.com/gonutz/blob"
 	"github.com/gonutz/d3d9"
 	"github.com/gonutz/mixer"
 	"github.com/gonutz/mixer/wav"
 	"github.com/gonutz/payload"
+	"github.com/gonutz/w32"
 
 	"github.com/gonutz/ld36/game"
 	"github.com/gonutz/ld36/log"
@@ -45,7 +41,7 @@ var (
 	readFile          func(id string) ([]byte, error) = readFileFromDisk
 	rscBlob           *blob.Blob
 	muted             bool
-	previousPlacement C.WINDOWPLACEMENT
+	previousPlacement w32.WINDOWPLACEMENT
 	device            d3d9.Device
 	windowW, windowH  int
 	events            []game.InputEvent
@@ -88,7 +84,7 @@ func main() {
 	}
 
 	// create the window and initialize DirectX
-	w32Window, err := openWindow(
+	window, err := openWindow(
 		"LD36WindowClass",
 		handleMessage,
 		0, 0, 660, 500,
@@ -96,32 +92,31 @@ func main() {
 	if err != nil {
 		log.Fatal("unable to open window: ", err)
 	}
-	cWindow := C.HWND(unsafe.Pointer(w32Window))
-	w32.SetWindowText(w32Window, "Reinventing the Wheel")
+	w32.SetWindowText(window, "Reinventing the Wheel")
 	// the icon is contained in the .exe file as a resource, load it and set it
 	// as the window icon so it appears in the top-left corner of the window and
 	// when you alt+tab between windows
 	const iconResourceID = 10
-	iconHandle := C.LoadImage(
-		C.GetModuleHandle(nil),
-		(*C.CHAR)(unsafe.Pointer(w32.MakeIntResource(iconResourceID))),
-		C.IMAGE_ICON,
+	iconHandle := w32.LoadImage(
+		w32.GetModuleHandle(""),
+		string(iconResourceID),
+		w32.IMAGE_ICON,
 		0,
 		0,
-		C.LR_DEFAULTSIZE|C.LR_SHARED,
+		w32.LR_DEFAULTSIZE|w32.LR_SHARED,
 	)
-	if iconHandle != nil {
-		w32.SendMessage(w32Window, w32.WM_SETICON, w32.ICON_SMALL, uintptr(iconHandle))
-		w32.SendMessage(w32Window, w32.WM_SETICON, w32.ICON_SMALL2, uintptr(iconHandle))
-		w32.SendMessage(w32Window, w32.WM_SETICON, w32.ICON_BIG, uintptr(iconHandle))
+	if iconHandle != 0 {
+		w32.SendMessage(window, w32.WM_SETICON, w32.ICON_SMALL, uintptr(iconHandle))
+		w32.SendMessage(window, w32.WM_SETICON, w32.ICON_SMALL2, uintptr(iconHandle))
+		w32.SendMessage(window, w32.WM_SETICON, w32.ICON_BIG, uintptr(iconHandle))
 	}
 
 	fullscreen := true
 	//fullscreen = false // NOTE toggle comment on this line for debugging
 	if fullscreen {
-		toggleFullscreen(cWindow)
+		toggleFullscreen(window)
 	}
-	client := w32.GetClientRect(w32Window)
+	client := w32.GetClientRect(window)
 	windowW = int(client.Right - client.Left)
 	windowH = int(client.Bottom - client.Top)
 
@@ -172,7 +167,7 @@ func main() {
 	device, _, err = d3d.CreateDevice(
 		d3d9.ADAPTER_DEFAULT,
 		d3d9.DEVTYPE_HAL,
-		unsafe.Pointer(cWindow),
+		unsafe.Pointer(window),
 		createFlags,
 		d3d9.PRESENT_PARAMETERS{
 			BackBufferWidth:      maxScreenW,
@@ -182,7 +177,7 @@ func main() {
 			PresentationInterval: d3d9.PRESENT_INTERVAL_ONE, // enable VSync
 			Windowed:             true,
 			SwapEffect:           d3d9.SWAPEFFECT_DISCARD,
-			HDeviceWindow:        unsafe.Pointer(cWindow),
+			HDeviceWindow:        unsafe.Pointer(window),
 		},
 	)
 	if err != nil {
@@ -218,12 +213,12 @@ func main() {
 	defer res.close()
 	g := game.New(res)
 
-	var msg C.MSG
-	C.PeekMessage(&msg, nil, 0, 0, C.PM_NOREMOVE)
-	for msg.message != C.WM_QUIT {
-		if C.PeekMessage(&msg, nil, 0, 0, C.PM_REMOVE) != 0 {
-			C.TranslateMessage(&msg)
-			C.DispatchMessage(&msg)
+	var msg w32.MSG
+	w32.PeekMessage(&msg, 0, 0, 0, w32.PM_NOREMOVE)
+	for msg.Message != w32.WM_QUIT {
+		if w32.PeekMessage(&msg, 0, 0, 0, w32.PM_REMOVE) {
+			w32.TranslateMessage(&msg)
+			w32.DispatchMessage(&msg)
 		} else {
 			device.SetViewport(
 				d3d9.VIEWPORT{0, 0, uint32(windowW), uint32(windowH), 0, 1},
@@ -281,13 +276,13 @@ func handleMessage(window w32.HWND, message uint32, w, l uintptr) uintptr {
 		case w32.VK_ESCAPE:
 			w32.SendMessage(window, w32.WM_CLOSE, 0, 0)
 		case w32.VK_F11:
-			toggleFullscreen((C.HWND)(unsafe.Pointer(window)))
+			toggleFullscreen(window)
 		}
 		return 1
 	case w32.WM_DESTROY:
 		w32.PostQuitMessage(0)
 		return 1
-	case C.WM_SIZE:
+	case w32.WM_SIZE:
 		windowW, windowH = int((uint(l))&0xFFFF), int((uint(l)>>16)&0xFFFF)
 		return 1
 	default:
@@ -307,11 +302,11 @@ func openWindow(
 	windowProc := syscall.NewCallback(callback)
 
 	class := w32.WNDCLASSEX{
-		Size:      C.sizeof_WNDCLASSEX,
 		WndProc:   windowProc,
 		Cursor:    w32.LoadCursor(0, (*uint16)(unsafe.Pointer(uintptr(w32.IDC_ARROW)))),
 		ClassName: syscall.StringToUTF16Ptr(className),
 	}
+	class.Size = uint32(unsafe.Sizeof(class))
 
 	atom := w32.RegisterClassEx(&class)
 	if atom == 0 {
@@ -333,38 +328,43 @@ func openWindow(
 	return window, nil
 }
 
-func toggleFullscreen(window C.HWND) {
-	style := C.GetWindowLong(window, C.GWL_STYLE)
-	if style&C.WS_OVERLAPPEDWINDOW != 0 {
+func toggleFullscreen(window w32.HWND) {
+	style := w32.GetWindowLong(window, w32.GWL_STYLE)
+	if style&w32.WS_OVERLAPPEDWINDOW != 0 {
 		// go into full-screen
-		monitorInfo := C.MONITORINFO{cbSize: C.sizeof_MONITORINFO}
-		previousPlacement.length = C.sizeof_WINDOWPLACEMENT
-		monitor := C.MonitorFromWindow(window, C.MONITOR_DEFAULTTOPRIMARY)
-		if C.GetWindowPlacement(window, &previousPlacement) != 0 &&
-			C.GetMonitorInfo(monitor, &monitorInfo) != 0 {
-			C.SetWindowLong(window, C.GWL_STYLE, style & ^C.WS_OVERLAPPEDWINDOW)
-			C.SetWindowPos(window, C.HWND(unsafe.Pointer(uintptr(0))),
-				C.int(monitorInfo.rcMonitor.left),
-				C.int(monitorInfo.rcMonitor.top),
-				C.int(monitorInfo.rcMonitor.right-monitorInfo.rcMonitor.left),
-				C.int(monitorInfo.rcMonitor.bottom-monitorInfo.rcMonitor.top),
-				C.SWP_NOOWNERZORDER|C.SWP_FRAMECHANGED,
+		var monitorInfo w32.MONITORINFO
+		monitorInfo.CbSize = uint32(unsafe.Sizeof(monitorInfo))
+		previousPlacement.Length = uint32(unsafe.Sizeof(previousPlacement))
+		monitor := w32.MonitorFromWindow(window, w32.MONITOR_DEFAULTTOPRIMARY)
+		if w32.GetWindowPlacement(window, &previousPlacement) &&
+			w32.GetMonitorInfo(monitor, &monitorInfo) {
+			w32.SetWindowLong(
+				window,
+				w32.GWL_STYLE,
+				uint32(style & ^w32.WS_OVERLAPPEDWINDOW),
+			)
+			w32.SetWindowPos(window, w32.HWND(unsafe.Pointer(uintptr(0))),
+				int(monitorInfo.RcMonitor.Left),
+				int(monitorInfo.RcMonitor.Top),
+				int(monitorInfo.RcMonitor.Right-monitorInfo.RcMonitor.Left),
+				int(monitorInfo.RcMonitor.Bottom-monitorInfo.RcMonitor.Top),
+				w32.SWP_NOOWNERZORDER|w32.SWP_FRAMECHANGED,
 			)
 		}
-		C.ShowCursor(0)
+		w32.ShowCursor(false)
 	} else {
 		// go into windowed mode
-		C.SetWindowLong(
+		w32.SetWindowLong(
 			window,
-			C.GWL_STYLE,
-			style|w32.WS_OVERLAPPEDWINDOW,
+			w32.GWL_STYLE,
+			uint32(style|w32.WS_OVERLAPPEDWINDOW),
 		)
-		C.SetWindowPlacement(window, &previousPlacement)
-		C.SetWindowPos(window, nil, 0, 0, 0, 0,
-			C.SWP_NOMOVE|C.SWP_NOSIZE|C.SWP_NOZORDER|
-				C.SWP_NOOWNERZORDER|C.SWP_FRAMECHANGED,
+		w32.SetWindowPlacement(window, &previousPlacement)
+		w32.SetWindowPos(window, 0, 0, 0, 0, 0,
+			w32.SWP_NOMOVE|w32.SWP_NOSIZE|w32.SWP_NOZORDER|
+				w32.SWP_NOOWNERZORDER|w32.SWP_FRAMECHANGED,
 		)
-		C.ShowCursor(1)
+		w32.ShowCursor(true)
 	}
 }
 
