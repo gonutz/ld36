@@ -2,10 +2,15 @@ This is my entry for the [Ludum Dare 36](http://ludumdare.com/compo/) Compo (201
 
 Right now this project is Windows only. 
 
-To build the project you need to have [Go](https://golang.org/dl/) and a [C-compiler](https://sourceforge.net/projects/mingw/files/latest/download?source=files) installed. You can run
+# Build
 
-`go get github.com/gonutz/ld36`
+To build the project you need to have [the Go programming language](https://golang.org/dl/) installed. You also need [Git](https://git-scm.com/downloads). To build and run the program, type this in the command line:
 
-to get the source code. Go to `%GOPATH%\src\github.com\gonutz\ld36` and run `build.bat`. This should get the necessary dependencies, create the game assets from the rsc folder and build the game into the (newly created) bin folder.
+```
+go get -u github.com/gonutz/ld36
+cd %GOPATH%\src\github.com\gonutz\ld36
+build.bat
+bin\ld36.exe
+```
 
-Run `bin\ld36.exe`.
+This will get the source code and its dependencies, then call the `build.bat` script which will generate the game's final resources, build the game and pack both into a single executable without external dependencies. The executable is in `bin\ld36.exe`. You can run this program on any Windows machine from Windows XP up.
