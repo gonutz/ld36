@@ -99,7 +99,7 @@ func main() {
 	const iconResourceID = 10
 	iconHandle := w32.LoadImage(
 		w32.GetModuleHandle(""),
-		string(iconResourceID),
+		w32.MakeIntResource(iconResourceID),
 		w32.IMAGE_ICON,
 		0,
 		0,
