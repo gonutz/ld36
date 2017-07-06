@@ -10,15 +10,14 @@ go get github.com/akavel/rsrc
 rsrc -arch 386 -ico icon.ico -o rsrc_386.syso
 rsrc -arch amd64 -ico icon.ico -o rsrc_amd64.syso
 
-setlocal
-set GODEBUG=cgocheck=0
-go build -ldflags -H=windowsgui -o bin\ld36_no_data.exe
-endlocal
+go get github.com/gonutz/payload/cmd/payload
+
+set GOARCH=386
+go build -ldflags "-s -w -H=windowsgui" -o bin\ld36_no_data.exe
 
 cd bin
-go get github.com/gonutz/payload/cmd/payload
 payload -exe=ld36_no_data.exe -data=blob -output ld36.exe
 cd ..
 
-rm bin\ld36_no_data.exe
-rm bin\blob
+del bin\ld36_no_data.exe
+del bin\blob

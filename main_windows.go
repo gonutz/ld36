@@ -42,7 +42,7 @@ var (
 	rscBlob           *blob.Blob
 	muted             bool
 	previousPlacement w32.WINDOWPLACEMENT
-	device            d3d9.Device
+	device            *d3d9.Device
 	windowW, windowH  int
 	events            []game.InputEvent
 )
@@ -129,18 +129,13 @@ func main() {
 	}
 
 	// initialize Direct3D9
-	if err := d3d9.Init(); err != nil {
-		log.Fatal("unable to initialize Direct3D9: ", err)
-	}
-	defer d3d9.Close()
-
 	d3d, err := d3d9.Create(d3d9.SDK_VERSION)
 	if err != nil {
 		log.Fatal("unable to create Direct3D9 object: ", err)
 	}
 	defer d3d.Release()
 
-	var maxScreenW, maxScreenH uint
+	var maxScreenW, maxScreenH uint32
 	for i := uint(0); i < d3d.GetAdapterCount(); i++ {
 		mode, err := d3d.GetAdapterDisplayMode(i)
 		if err == nil {
@@ -153,7 +148,7 @@ func main() {
 		}
 	}
 	if maxScreenW == 0 || maxScreenH == 0 {
-		maxScreenW, maxScreenH = uint(windowW), uint(windowH)
+		maxScreenW, maxScreenH = uint32(windowW), uint32(windowH)
 	}
 
 	var createFlags uint32 = d3d9.CREATE_SOFTWARE_VERTEXPROCESSING
@@ -167,7 +162,7 @@ func main() {
 	device, _, err = d3d.CreateDevice(
 		d3d9.ADAPTER_DEFAULT,
 		d3d9.DEVTYPE_HAL,
-		unsafe.Pointer(window),
+		d3d9.HWND(window),
 		createFlags,
 		d3d9.PRESENT_PARAMETERS{
 			BackBufferWidth:      maxScreenW,
@@ -175,9 +170,9 @@ func main() {
 			BackBufferFormat:     d3d9.FMT_A8R8G8B8,
 			BackBufferCount:      1,
 			PresentationInterval: d3d9.PRESENT_INTERVAL_ONE, // enable VSync
-			Windowed:             true,
-			SwapEffect:           d3d9.SWAPEFFECT_DISCARD,
-			HDeviceWindow:        unsafe.Pointer(window),
+			Windowed:             1,
+			SwapEffect:           d3d9.SWAPEFFECT_COPY,
+			HDeviceWindow:        d3d9.HWND(window),
 		},
 	)
 	if err != nil {
@@ -187,8 +182,6 @@ func main() {
 
 	device.SetFVF(vertexFormat)
 	device.SetRenderState(d3d9.RS_ZENABLE, d3d9.ZB_FALSE)
-	//device.SetRenderState(d3d9.RS_CULLMODE, d3d9.CULL_CCW)
-	// TODO remove this once everything is drawn in the right order
 	device.SetRenderState(d3d9.RS_CULLMODE, d3d9.CULL_NONE)
 	device.SetRenderState(d3d9.RS_LIGHTING, 0)
 	device.SetRenderState(d3d9.RS_SRCBLEND, d3d9.BLEND_SRCALPHA)
@@ -231,13 +224,19 @@ func main() {
 			events = events[0:0]
 
 			device.EndScene()
-			// TODO handle device lost error
-			device.Present(
+			err := device.Present(
 				&d3d9.RECT{0, 0, int32(windowW), int32(windowH)},
 				nil,
-				nil,
+				0,
 				nil,
 			)
+			if err != nil {
+				if err.Code() == d3d9.ERR_DEVICELOST {
+					// TODO restore device, textures and buffers
+				} else {
+					panic("Present failed: " + err.Error())
+				}
+			}
 		}
 	}
 }
@@ -296,18 +295,14 @@ func openWindow(
 	className string,
 	callback messageCallback,
 	x, y, width, height int,
-) (
-	w32.HWND, error,
-) {
+) (w32.HWND, error) {
 	windowProc := syscall.NewCallback(callback)
 
 	class := w32.WNDCLASSEX{
 		WndProc:   windowProc,
-		Cursor:    w32.LoadCursor(0, (*uint16)(unsafe.Pointer(uintptr(w32.IDC_ARROW)))),
+		Cursor:    w32.LoadCursor(0, w32.MakeIntResource(w32.IDC_ARROW)),
 		ClassName: syscall.StringToUTF16Ptr(className),
 	}
-	class.Size = uint32(unsafe.Sizeof(class))
-
 	atom := w32.RegisterClassEx(&class)
 	if atom == 0 {
 		return 0, errors.New("RegisterClassEx failed")
@@ -333,8 +328,6 @@ func toggleFullscreen(window w32.HWND) {
 	if style&w32.WS_OVERLAPPEDWINDOW != 0 {
 		// go into full-screen
 		var monitorInfo w32.MONITORINFO
-		monitorInfo.CbSize = uint32(unsafe.Sizeof(monitorInfo))
-		previousPlacement.Length = uint32(unsafe.Sizeof(previousPlacement))
 		monitor := w32.MonitorFromWindow(window, w32.MONITOR_DEFAULTTOPRIMARY)
 		if w32.GetWindowPlacement(window, &previousPlacement) &&
 			w32.GetMonitorInfo(monitor, &monitorInfo) {
@@ -343,7 +336,9 @@ func toggleFullscreen(window w32.HWND) {
 				w32.GWL_STYLE,
 				uint32(style & ^w32.WS_OVERLAPPEDWINDOW),
 			)
-			w32.SetWindowPos(window, w32.HWND(unsafe.Pointer(uintptr(0))),
+			w32.SetWindowPos(
+				window,
+				0,
 				int(monitorInfo.RcMonitor.Left),
 				int(monitorInfo.RcMonitor.Top),
 				int(monitorInfo.RcMonitor.Right-monitorInfo.RcMonitor.Left),
@@ -390,7 +385,7 @@ func readFileFromBlob(id string) (data []byte, err error) {
 	return
 }
 
-func mustLoadTexture(id string) (texture d3d9.Texture, width, height int) {
+func mustLoadTexture(id string) (texture *d3d9.Texture, width, height int) {
 	nrgba := toNRGBA(mustLoadPng(id))
 	width, height = nrgba.Bounds().Dx(), nrgba.Bounds().Dy()
 	var err error
@@ -401,7 +396,7 @@ func mustLoadTexture(id string) (texture d3d9.Texture, width, height int) {
 		d3d9.USAGE_SOFTWAREPROCESSING,
 		d3d9.FMT_A8R8G8B8,
 		d3d9.POOL_MANAGED,
-		nil,
+		0,
 	)
 	if err != nil {
 		log.Fatalf("unable to create texture %v: %v", id, err)
@@ -448,7 +443,7 @@ func newGameResources() *resources {
 }
 
 type resources struct {
-	textures []d3d9.Texture
+	textures []*d3d9.Texture
 	images   map[string]game.Image
 	sounds   map[string]game.Sound
 }
@@ -457,6 +452,8 @@ func (r *resources) close() {
 	for i := range r.textures {
 		r.textures[i].Release()
 	}
+	r.textures = nil
+	r.images = make(map[string]game.Image)
 }
 
 func (r *resources) LoadFile(id string) []byte {
@@ -545,7 +542,7 @@ func (r *resources) LoadImage(id string) game.Image {
 }
 
 type textureImage struct {
-	texture       d3d9.Texture
+	texture       *d3d9.Texture
 	width, height int
 }
 
@@ -562,7 +559,7 @@ func (img textureImage) DrawAtEx(x, y int, options game.DrawOptions) {
 }
 
 func (img textureImage) draw(x, y int, flipX bool, degrees float32, alpha float32) {
-	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
+	if err := device.SetTexture(0, img.texture); err != nil {
 		log.Println("DrawAt: device.SetTexture failed:", err)
 		return
 	}
@@ -604,22 +601,15 @@ func (img textureImage) draw(x, y int, flipX bool, degrees float32, alpha float3
 	if err := device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		log.Println("DrawAt: device.DrawPrimitiveUP failed:", err)
 	}
-
-	// TODO reset the texture if necessary (if later allowing operations that
-	// do not use textures)
-	//if err := w.device.SetTexture(0, d3d9.BaseTexture{}); err != nil {
-	//logln("DrawAt: device.SetTexture failed on reset:", err)
-	//return
-	//}
 }
 
 func (img textureImage) DrawRectAt(x, y int, source game.Rectangle) {
-	if err := device.SetTexture(0, img.texture.BaseTexture); err != nil {
+	if err := device.SetTexture(0, img.texture); err != nil {
 		log.Println("DrawAt: device.SetTexture failed:", err)
 		return
 	}
@@ -650,7 +640,7 @@ func (img textureImage) DrawRectAt(x, y int, source game.Rectangle) {
 	if err := device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		log.Println("DrawAt: device.DrawPrimitiveUP failed:", err)
