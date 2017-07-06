@@ -1,3 +1,5 @@
+![Screenshot](http://ludumdare.com/compo/wp-content/compo2//570486/110557-shot0-1472432554.png-eq-900-500.jpg)
+
 This is my entry for the [Ludum Dare 36](http://ludumdare.com/compo/ludum-dare-36/?action=preview&uid=110557) Compo (2016).
 
 Right now this project is Windows only. 
