@@ -16,7 +16,7 @@ set GOARCH=386
 go build -ldflags "-s -w -H=windowsgui" -o bin\ld36_no_data.exe
 
 cd bin
-payload -exe=ld36_no_data.exe -data=blob -output ld36.exe
+payload -exe=ld36_no_data.exe -data=blob -output reinventing_the_wheel.exe
 cd ..
 
 del bin\ld36_no_data.exe
