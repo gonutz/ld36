@@ -1,2 +1,2 @@
 call build.bat
-start /WAIT bin\ld36.exe
+start /WAIT bin\reinventing_the_wheel.exe
